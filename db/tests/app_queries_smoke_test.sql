@@ -1,0 +1,74 @@
+-- Executes every SQL statement used by the Spring layer, as the app role with RLS on.
+-- Guards against drift between Java query strings and the schema. Rolls back.
+\set ON_ERROR_STOP on
+begin;
+set local role schoomano_app;
+
+-- RequestContextResolver
+select person_id, tenant_id, tenant_slug, tenant_name from auth_resolve_identity('dev', 'dev-meera');
+
+select set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+
+-- ActorLoader
+select role_key, scope_level, scope_id, valid_from, valid_to from role_grant
+ where person_id = '13000000-0000-4000-8000-000000000001' and (valid_to is null or valid_to > now());
+select student_person_id, status, can_view_attendance, can_view_academic, can_pay_fees,
+       can_give_consent, can_receive_notices, can_pickup, valid_from, valid_to
+  from guardian_relationship
+ where guardian_person_id = '13000000-0000-4000-8000-000000000010' and status in ('ACTIVE','RESTRICTED');
+select resource_type, resource_id, justification, granted_at, expires_at from break_glass_grant
+ where person_id = '13000000-0000-4000-8000-000000000001' and expires_at > now();
+
+-- MeController
+select coalesce(preferred_name, given_name) || coalesce(' ' || family_name, '') from person
+ where id = '13000000-0000-4000-8000-000000000010';
+select coalesce(p.preferred_name, p.given_name) as display_name, p.school_ref, c.id as campus_id, c.name as campus_name
+  from person p
+  left join lateral (
+    select e.campus_id from student_enrollment e join academic_year y on y.id = e.academic_year_id
+     where e.student_person_id = p.id order by y.starts_on desc limit 1) le on true
+  left join campus c on c.id = le.campus_id
+ where p.id = '13000000-0000-4000-8000-000000000020';
+
+-- CampusController + ScopeDirectory
+select c.id, c.code, c.name, c.time_zone, c.status, le.name as legal_entity,
+       (select y.label from academic_year y where y.campus_id = c.id and y.status = 'ACTIVE'
+         order by y.starts_on desc limit 1) as active_year
+  from campus c join legal_entity le on le.id = c.legal_entity_id order by c.name;
+select legal_entity_id from campus where id = '12000000-0000-4000-8000-000000000001';
+select e.campus_id from student_enrollment e join academic_year y on y.id = e.academic_year_id
+ where e.student_person_id = '13000000-0000-4000-8000-000000000020' order by y.starts_on desc limit 1;
+
+-- ConfigController
+select config_key, scope_level, scope_id, version, value::text, effective_from, effective_to, status
+  from config_version where config_key = 'attendance.late_after_minutes';
+select id, scope_level, scope_id, version, value::text, effective_from, effective_to, status, change_note, published_at
+  from config_version where config_key = 'attendance.late_after_minutes' order by scope_level, scope_id, version;
+select coalesce(max(version), 0) + 1 from config_version
+ where config_key = 'attendance.late_after_minutes' and scope_level = 'GROUP'
+   and scope_id = '10000000-0000-4000-8000-000000000001';
+
+create temp table t_draft on commit drop as
+with ins as (
+  insert into config_version (tenant_id, config_key, scope_level, scope_id, version, value,
+                              effective_from, change_note, created_by)
+  values ('10000000-0000-4000-8000-000000000001', 'attendance.late_after_minutes', 'GROUP',
+          '10000000-0000-4000-8000-000000000001', 99, '5'::jsonb, '2031-01-01T00:00:00+05:30',
+          'smoke test', '13000000-0000-4000-8000-000000000001') returning id)
+select id from ins;
+select config_publish((select id from t_draft), '13000000-0000-4000-8000-000000000001')::text;
+
+-- AuditWriter + outbox
+insert into audit_event (tenant_id, actor_person_id, actor_kind, action, resource_type, resource_id,
+                         outcome, reason, correlation_id, policy_version, details)
+values ('10000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000001', 'USER',
+        'config.published', 'config_version', 'x', 'SUCCESS', null, 'corr-smoke-01', 'access-2026.09.1', '{"k":1}'::jsonb);
+insert into outbox_event (tenant_id, aggregate_type, aggregate_id, event_type, payload)
+values ('10000000-0000-4000-8000-000000000001', 'config', 'attendance.late_after_minutes', 'config.published',
+        '{"key":"attendance.late_after_minutes","version":99}'::jsonb);
+
+-- TenantTx
+select set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+
+do $$ begin raise notice 'ALL APPLICATION QUERIES EXECUTED AGAINST THE SCHEMA'; end $$;
+rollback;

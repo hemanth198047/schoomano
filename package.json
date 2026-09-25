@@ -1,0 +1,13 @@
+{
+  "name": "schoomano",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Schoomano school operations platform (monorepo root for JS/TS workspaces)",
+  "workspaces": ["packages/*", "web"],
+  "scripts": {
+    "tokens": "npm run build -w @schoomano/design-tokens",
+    "dev:web": "npm run dev -w @schoomano/web",
+    "check": "npm run check -w @schoomano/design-tokens && npm run check -w @schoomano/web"
+  },
+  "engines": { "node": ">=22" }
+}

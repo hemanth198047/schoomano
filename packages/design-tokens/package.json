@@ -1,0 +1,13 @@
+{
+  "name": "@schoomano/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Single source of design tokens for web (CSS variables) and mobile (TS object).",
+  "main": "src/tokens.ts",
+  "types": "src/tokens.ts",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check"
+  }
+}

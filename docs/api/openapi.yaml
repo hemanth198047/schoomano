@@ -1,0 +1,295 @@
+openapi: 3.1.0
+info:
+  title: Schoomano API
+  version: 0.1.0
+  description: |
+    Stage A contract. Every endpoint authorizes on the server using the authenticated identity.
+    The tenant is resolved from the identity, never accepted from the client; `X-Schoomano-Tenant`
+    only selects among schools the identity already belongs to.
+
+    Errors use RFC 9457 problem details with stable `code` and a `correlationId` for support.
+    Denied reads of specific records return 404 (not 403) so callers cannot probe which records exist.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+
+paths:
+  /api/v1/me:
+    get:
+      summary: Current person, school, active roles and linked children
+      operationId: getMe
+      parameters:
+        - $ref: '#/components/parameters/TenantSelector'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/campuses:
+    get:
+      summary: Campuses the caller may read (CAMPUS_READ in scope)
+      operationId: listCampuses
+      parameters:
+        - $ref: '#/components/parameters/TenantSelector'
+      responses:
+        '200':
+          description: OK (may be empty, e.g. for guardians)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Campus' }
+        '401': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/config/{key}:
+    get:
+      summary: Resolve the effective value of a setting for the group or one campus at a moment in time
+      operationId: resolveConfig
+      parameters:
+        - $ref: '#/components/parameters/ConfigKey'
+        - name: campusId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: asOf
+          in: query
+          description: Defaults to now. Past dates return the value that applied then.
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResolvedConfig' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/config/{key}/versions:
+    get:
+      summary: Full version history of a setting (all scopes, drafts included)
+      operationId: listConfigVersions
+      parameters:
+        - $ref: '#/components/parameters/ConfigKey'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConfigVersion' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/config/{key}/drafts:
+    post:
+      summary: Create a draft version (requires CONFIG_PUBLISH in the target scope). Audited.
+      operationId: createConfigDraft
+      parameters:
+        - $ref: '#/components/parameters/ConfigKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DraftRequest' }
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigVersion' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/config/drafts/{id}/preview:
+    post:
+      summary: Show, per campus, the value before and after the draft takes effect
+      operationId: previewConfigDraft
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PreviewRow' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/config/drafts/{id}/publish:
+    post:
+      summary: Publish a draft. Closes the open version at the new effective date; never rewrites history. Audited, emits outbox event.
+      operationId: publishConfigDraft
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfigVersion' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: Not a draft, or effective date not after the latest published version
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: OIDC access token. Local development only accepts `dev:<subject>` for synthetic seed users.
+
+  parameters:
+    TenantSelector:
+      name: X-Schoomano-Tenant
+      in: header
+      required: false
+      description: Tenant slug, only when the identity belongs to more than one school group. Never trusted alone.
+      schema: { type: string, pattern: '^[a-z0-9-]{3,40}$' }
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema: { type: string, pattern: '^[A-Za-z0-9-]{8,64}$' }
+    ConfigKey:
+      name: key
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z][a-z0-9_.]{2,80}$' }
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Problem:
+      description: Problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      required: [status, code, correlationId]
+      properties:
+        status: { type: integer }
+        title: { type: string }
+        detail: { type: string }
+        code:
+          type: string
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected]
+        correlationId: { type: string }
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    GuardianCapability:
+      type: string
+      enum: [VIEW_ATTENDANCE, VIEW_ACADEMIC, PAY_FEES, GIVE_CONSENT, RECEIVE_NOTICES, PICKUP]
+
+    Me:
+      type: object
+      required: [personId, displayName, tenant, roles, children, policyVersion]
+      properties:
+        personId: { type: string, format: uuid }
+        displayName: { type: string }
+        tenant:
+          type: object
+          required: [id, slug, name]
+          properties:
+            id: { type: string, format: uuid }
+            slug: { type: string }
+            name: { type: string }
+        roles:
+          type: array
+          items:
+            type: object
+            properties:
+              roleKey: { type: string }
+              scopeLevel: { type: string, enum: [GROUP, LEGAL_ENTITY, CAMPUS, PROGRAMME, ACADEMIC_YEAR, CLASS] }
+              scopeId: { type: string, format: uuid }
+              scopeName: { type: string }
+        children:
+          type: array
+          items:
+            type: object
+            properties:
+              studentId: { type: string, format: uuid }
+              displayName: { type: string }
+              schoolRef: { type: string }
+              campusId: { type: string, format: uuid }
+              campusName: { type: string }
+              capabilities:
+                type: array
+                items: { $ref: '#/components/schemas/GuardianCapability' }
+        policyVersion: { type: string }
+
+    Campus:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        timeZone: { type: string, examples: [Asia/Kolkata] }
+        status: { type: string, enum: [SETUP, ACTIVE, ARCHIVED] }
+        legalEntity: { type: string }
+        activeYear: { type: string }
+
+    ResolvedConfig:
+      type: object
+      properties:
+        key: { type: string }
+        value: {}
+        version: { type: integer }
+        definedAtLevel: { type: string }
+        definedAtId: { type: string, format: uuid }
+        inherited: { type: boolean }
+        asOf: { type: string, format: date-time }
+
+    ConfigVersion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        scopeLevel: { type: string, enum: [GROUP, CAMPUS] }
+        scopeId: { type: string, format: uuid }
+        version: { type: integer }
+        value: {}
+        effectiveFrom: { type: string, format: date-time }
+        effectiveTo: { type: string, format: date-time }
+        status: { type: string, enum: [DRAFT, PUBLISHED, RETIRED] }
+        changeNote: { type: string }
+        publishedAt: { type: string, format: date-time }
+
+    DraftRequest:
+      type: object
+      required: [scopeLevel, scopeId, value, effectiveFrom, changeNote]
+      properties:
+        scopeLevel: { type: string, enum: [GROUP, CAMPUS] }
+        scopeId: { type: string, format: uuid }
+        value: { description: Any JSON value }
+        effectiveFrom: { type: string, format: date-time }
+        changeNote: { type: string, maxLength: 500 }
+
+    PreviewRow:
+      type: object
+      properties:
+        campusId: { type: string, format: uuid }
+        campusName: { type: string }
+        before: {}
+        after: {}
+        changed: { type: boolean }

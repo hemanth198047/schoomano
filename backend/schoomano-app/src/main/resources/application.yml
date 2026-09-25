@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: schoomano
+  datasource:
+    # The application connects as the unprivileged role: RLS applies to every query.
+    url: ${SCHOOMANO_DB_URL:jdbc:postgresql://localhost:5432/schoomano}
+    username: ${SCHOOMANO_DB_APP_USER:schoomano_app}
+    password: ${SCHOOMANO_DB_APP_PASSWORD}
+  flyway:
+    # Migrations run as the schema owner, separately from the app role.
+    url: ${SCHOOMANO_DB_URL:jdbc:postgresql://localhost:5432/schoomano}
+    user: ${SCHOOMANO_DB_OWNER_USER:schoomano_owner}
+    password: ${SCHOOMANO_DB_OWNER_PASSWORD}
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: ${SCHOOMANO_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+schoomano:
+  auth:
+    # Dev tokens ("Bearer dev:<subject>") are ONLY for local development with synthetic data.
+    # Startup fails if dev mode is combined with the 'prod' profile.
+    dev-mode: ${SCHOOMANO_AUTH_DEV_MODE:false}
+  cors:
+    allowed-origins: ${SCHOOMANO_CORS_ORIGINS:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  pattern:
+    # Correlation id on every line; no request bodies are logged.
+    console: "%d{ISO8601} %-5level [%X{correlationId:-}] [%X{tenantId:-}] %logger{36} - %msg%n"
