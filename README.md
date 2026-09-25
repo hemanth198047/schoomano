@@ -50,8 +50,8 @@ Options work in either style on every platform (`--dev` or `-Dev`).
 
 | Command (`scripts/…` .sh / .cmd / .ps1) | What it does |
 |---|---|
-| `start` | Database, backend and frontend in containers. Web on :8081, API on :8080 |
-| `start --dev` | Database in a container; backend (`java -jar`) and frontend (Vite, hot reload on :5173) as local processes. Needs JDK 21, Maven 3.9+, Node 22 |
+| `start` | Database, backend and frontend in containers. Web on :8081, API on :8080 by default |
+| `start --dev` | Database in a container; backend (`java -jar`) and frontend (Vite, hot reload on :5173 by default) as local processes. Needs JDK 21, Maven 3.9+, Node 22 |
 | `start [--dev] db\|backend\|frontend` | Start one component and what it depends on |
 | `start --seed` / `seed` | Load synthetic demo data (safe to repeat) |
 | `start --no-build` | Reuse existing images / backend jar |
@@ -62,7 +62,11 @@ Options work in either style on every platform (`--dev` or `-Dev`).
 | `logs [backend\|frontend\|db] [-f]` | Recent logs, optionally following |
 | `db-test` | RLS isolation, audit chain, effective dating, and API-query tests against the local database |
 
-Ports and passwords are in `.env` (see `.env.example`). Everything binds to 127.0.0.1.
+**Ports.** Defaults are 5432 (database), 8080 (API), 8081 (web) and 5173 (dev web server), all bound to 127.0.0.1. If another program already uses one when you run `start`, the script picks the next free port, tells you, and saves it in `.env`, so `status`, `stop` and later starts use the same ports. Ports held by Schoomano's own running containers or processes are never moved. To choose ports yourself, edit them in `.env`.
+
+**Paths.** The scripts can be run from any folder. Each one switches to the repository root and uses only relative paths (`.env`, `infra/docker-compose.yml`, `.run/`). The PowerShell scripts return you to your original folder and restore any environment variables they set, even after an error.
+
+**Docker output.** The scripts ask Docker Compose for plain progress output, so the build log prints as text lines. This avoids "failed to get console: The handle is invalid" on Windows and in Git Bash.
 
 ## Tests
 

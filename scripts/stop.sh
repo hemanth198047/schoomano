@@ -7,13 +7,13 @@
 set -eu
 . "$(dirname -- "$0")/lib/common.sh"
 
-usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,7p' scripts/stop.sh | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 TARGET=all; PURGE=0; YES=0
 for arg in "$@"; do
   case "$arg" in
-    --purge) PURGE=1 ;;
-    --yes|-y) YES=1 ;;
+    --purge|-Purge|-purge) PURGE=1 ;;
+    --yes|-y|-Yes) YES=1 ;;
     -h|--help) usage 0 ;;
     -*) warn "unknown option $arg"; usage 2 ;;
     *) TARGET=$(component "$arg") ;;

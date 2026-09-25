@@ -6,18 +6,19 @@
 #   scripts/start.sh [--dev] backend    one component (and what it needs); also: db, frontend
 #   options: --seed      load synthetic demo data once the backend has migrated the database
 #            --no-build  reuse existing images / backend jar
+# Ports come from .env; if one is taken by another program, the next free port is used and saved to .env.
 set -eu
 . "$(dirname -- "$0")/lib/common.sh"
 
-usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,10p' scripts/start.sh | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 MODE=containers; SEED=0; BUILD=1; TARGET=all
 for arg in "$@"; do
   case "$arg" in
-    --dev) MODE=dev ;;
-    --seed) SEED=1 ;;
-    --no-build) BUILD=0 ;;
-    -h|--help) usage 0 ;;
+    --dev|-dev|-Dev) MODE=dev ;;
+    --seed|-seed|-Seed) SEED=1 ;;
+    --no-build|-NoBuild|-nobuild) BUILD=0 ;;
+    -h|--help|-Help) usage 0 ;;
     -*) warn "unknown option $arg"; usage 2 ;;
     *) TARGET=$(component "$arg") ;;
   esac
@@ -27,13 +28,14 @@ load_env
 require_docker
 mkdir -p "$RUN_DIR"
 [ "$SEED" = 1 ] && [ "$TARGET" = db ] && die "--seed needs the backend (it creates the schema). Use: scripts/start.sh --seed"
+resolve_ports
 
 BUILD_FLAG=""; [ "$BUILD" = 1 ] && BUILD_FLAG="--build"
 API_HEALTH="http://127.0.0.1:$API_PORT/actuator/health/readiness"
 
 start_containers() {
   for p in backend frontend; do
-    running_pid "$p" >/dev/null && die "A local $p (--dev) is running on the same port. Run scripts/stop.sh first."
+    running_pid "$p" >/dev/null && die "A local $p (--dev) is running. Run scripts/stop.sh first."
   done
   case "$TARGET" in
     db)
@@ -55,18 +57,17 @@ start_containers() {
 
 start_dev_backend() {
   if pid=$(running_pid backend); then info "Local backend already running (pid $pid)"; return 0; fi
-  if [ -n "$(compose ps -q backend 2>/dev/null)" ]; then
-    die "The backend container is running on port $API_PORT. Run scripts/stop.sh backend first."
-  fi
+  container_running backend && die "The backend container is running. Run scripts/stop.sh backend first."
   have java || die "Java 21 (JDK) is required for --dev backend."
-  jar="$ROOT/backend/target/schoomano.jar"
+  jar=backend/target/schoomano.jar
   if [ "$BUILD" = 1 ] || [ ! -f "$jar" ]; then
     have mvn || die "Maven 3.9+ is required for --dev backend (or use container mode: scripts/start.sh)."
     info "Building backend (mvn package, tests skipped; run 'cd backend && mvn verify' for tests)"
-    mvn -B -q -f "$ROOT/backend/pom.xml" -DskipTests package
+    mvn -B -q -f backend/pom.xml -DskipTests package
   fi
   info "Starting local backend on port $API_PORT"
-  SCHOOMANO_PORT="$API_PORT" nohup java -jar "$jar" >"$RUN_DIR/backend.log" 2>&1 &
+  SCHOOMANO_PORT="$API_PORT" SCHOOMANO_DB_URL="jdbc:postgresql://localhost:$DB_PORT/schoomano" \
+    nohup java -jar "$jar" >"$RUN_DIR/backend.log" 2>&1 &
   echo $! >"$(pid_file backend)"
   wait_http backend "$API_HEALTH" "$(cat "$(pid_file backend)")"
 }
@@ -75,14 +76,15 @@ start_dev_frontend() {
   if pid=$(running_pid frontend); then info "Local frontend already running (pid $pid)"; return 0; fi
   have node || die "Node.js 22+ is required for --dev frontend."
   have npm || die "npm is required for --dev frontend."
-  cd "$ROOT/frontend"
-  if [ ! -d node_modules ]; then info "Installing frontend dependencies"; npm ci --no-audit --no-fund; fi
-  npm run -s tokens >/dev/null
+  if [ ! -d frontend/node_modules ]; then info "Installing frontend dependencies"; (cd frontend && npm ci --no-audit --no-fund); fi
+  (cd frontend && npm run -s tokens >/dev/null)
   info "Starting local frontend (Vite) on port $DEV_WEB_PORT"
-  SCHOOMANO_BACKEND_URL="http://127.0.0.1:$API_PORT" VITE_DEV_AUTH="${SCHOOMANO_AUTH_DEV_MODE:-false}" \
-    nohup node node_modules/vite/bin/vite.js --port "$DEV_WEB_PORT" --strictPort >"$RUN_DIR/frontend.log" 2>&1 &
-  echo $! >"$(pid_file frontend)"
-  cd "$ROOT"
+  (
+    cd frontend
+    SCHOOMANO_BACKEND_URL="http://127.0.0.1:$API_PORT" VITE_DEV_AUTH="${SCHOOMANO_AUTH_DEV_MODE:-false}" \
+      nohup node node_modules/vite/bin/vite.js --port "$DEV_WEB_PORT" --strictPort >"../$RUN_DIR/frontend.log" 2>&1 &
+    echo $! >"../$(pid_file frontend)"
+  )
   wait_http frontend "http://127.0.0.1:$DEV_WEB_PORT/" "$(cat "$(pid_file frontend)")"
 }
 
@@ -99,7 +101,7 @@ else
   esac
 fi
 
-[ "$SEED" = 1 ] && "$ROOT/scripts/seed.sh"
+if [ "$SEED" = 1 ]; then scripts/seed.sh; fi
 
 say ""
 info "Schoomano is running ($MODE mode)"
@@ -108,5 +110,5 @@ case "$MODE:$TARGET" in
   dev:all|dev:frontend)               say "  Web app:  http://localhost:$DEV_WEB_PORT  (hot reload)" ;;
 esac
 case "$TARGET" in all|backend) say "  API:      http://localhost:$API_PORT/actuator/health" ;; esac
-say "  Database: localhost:${SCHOOMANO_DB_PORT:-5432} (db schoomano)"
+say "  Database: localhost:$DB_PORT (db schoomano)"
 say "  Stop with: scripts/stop.sh    Status: scripts/status.sh"
