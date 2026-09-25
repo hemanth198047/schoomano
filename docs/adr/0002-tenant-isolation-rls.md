@@ -14,6 +14,6 @@ The worst failure for this product is one school's child data appearing in anoth
 - The only cross-tenant read is `auth_resolve_identity()`, a narrow `SECURITY DEFINER` function used at sign-in.
 
 ## Consequences
-- Verified by `db/tests/rls_and_invariants_test.sql` (12 tests, run as the app role) including a mutation check that proved the tests fail when RLS is disabled.
+- Verified by `backend/db/tests/rls_and_invariants_test.sql` (12 tests, run as the app role) including a mutation check that proved the tests fail when RLS is disabled.
 - Analytics across a group (M25) must run per-tenant or through an explicitly designed reporting role; no BYPASSRLS role for the app.
 - Large-tenant performance: indexes lead with `tenant_id`; revisit partitioning only with load-test evidence.

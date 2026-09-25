@@ -1,0 +1,63 @@
+# Schoomano local stack. Normally driven by scripts/start.* and scripts/stop.*.
+# Manual use from the repo root:
+#   docker compose --env-file .env -f infra/docker-compose.yml -p schoomano up -d --build
+# All ports bind to 127.0.0.1 only. Synthetic data only.
+name: schoomano
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: schoomano
+      POSTGRES_USER: ${SCHOOMANO_DB_OWNER_USER:-schoomano_owner}
+      POSTGRES_PASSWORD: ${SCHOOMANO_DB_OWNER_PASSWORD:?set SCHOOMANO_DB_OWNER_PASSWORD in .env}
+      SCHOOMANO_DB_APP_PASSWORD: ${SCHOOMANO_DB_APP_PASSWORD:?set SCHOOMANO_DB_APP_PASSWORD in .env}
+      TZ: Asia/Kolkata
+    ports:
+      - "127.0.0.1:${SCHOOMANO_DB_PORT:-5432}:5432"
+    volumes:
+      - schoomano-pg:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../backend/db:/schoomano-db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d schoomano"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ../backend
+    image: schoomano-backend:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SCHOOMANO_DB_URL: jdbc:postgresql://postgres:5432/schoomano
+      SCHOOMANO_DB_APP_USER: ${SCHOOMANO_DB_APP_USER:-schoomano_app}
+      SCHOOMANO_DB_APP_PASSWORD: ${SCHOOMANO_DB_APP_PASSWORD}
+      SCHOOMANO_DB_OWNER_USER: ${SCHOOMANO_DB_OWNER_USER:-schoomano_owner}
+      SCHOOMANO_DB_OWNER_PASSWORD: ${SCHOOMANO_DB_OWNER_PASSWORD}
+      # Local only. Never enable on a shared environment.
+      SCHOOMANO_AUTH_DEV_MODE: ${SCHOOMANO_AUTH_DEV_MODE:-false}
+    ports:
+      - "127.0.0.1:${SCHOOMANO_API_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        VITE_DEV_AUTH: ${SCHOOMANO_AUTH_DEV_MODE:-false}
+    image: schoomano-frontend:local
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      BACKEND_UPSTREAM: backend:8080
+    ports:
+      - "127.0.0.1:${SCHOOMANO_WEB_PORT:-8081}:8080"
+    restart: unless-stopped
+
+volumes:
+  schoomano-pg:

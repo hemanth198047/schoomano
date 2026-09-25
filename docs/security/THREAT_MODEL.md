@@ -1,6 +1,6 @@
 # Threat model (Stage A)
 
-Scope: multi-tenant web API, PostgreSQL, admin web. Data: children's identity, guardianship, attendance, and later health, safeguarding and payments. Method: STRIDE per asset, focused on harms to children and schools.
+Scope: multi-tenant web API, PostgreSQL, web app behind nginx, parent phone sign-in (designed). Data: children's identity, guardianship, attendance, and later health, safeguarding and payments. Method: STRIDE per asset, focused on harms to children and schools.
 
 | # | Threat | Impact | Control in Stage A | Status / remaining |
 |---|---|---|---|---|
@@ -18,5 +18,9 @@ Scope: multi-tenant web API, PostgreSQL, admin web. Data: children's identity, g
 | 12 | Enumeration of student ids | Medium | UUIDs, 404 for denied reads | Implemented |
 | 13 | Secrets committed | High | `.env` git-ignored, `.env.example` only, gitleaks in CI | Implemented; CI not yet run |
 | 14 | File URL leakage (documents, photos) | Severe | Not applicable yet | Design for B3: private bucket, short-lived signed URLs, malware scan, tenant prefix checks |
+| 15 | OTP brute force or SMS pumping (attacker triggers costly SMS) | High (account takeover, cost) | Design in ADR 0009: hashed 6-digit codes, 5 attempts, per-number/IP limits, daily caps, same response for unknown numbers | B4 |
+| 16 | Parent phone number hijack (SIM swap, number change) | Severe (child data) | Number changes only by school office with reason + audit; new-device notices; revocable sessions | B4 |
+| 17 | Script injection in the web app | High | Unprivileged nginx with strict CSP (`default-src 'self'`, no inline script), `nosniff`, `no-referrer`, `frame-ancestors 'none'`; React escaping | Verified live against the production build |
+| 18 | Dev sign-in shipped in a shared build | Severe | `VITE_DEV_AUTH` is a build argument defaulting to false; backend dev mode refused under `prod`; release checklist gate | Implemented |
 
 Before any real child data: DPDP counsel review of consent and guardian flows, a signed DPA with the school, penetration test, and restore drill (see `RELEASE_CHECKLIST.md`).

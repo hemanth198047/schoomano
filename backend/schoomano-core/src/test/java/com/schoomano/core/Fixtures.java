@@ -7,7 +7,7 @@ import com.schoomano.core.tenancy.TenantId;
 import java.time.Instant;
 import java.util.UUID;
 
-/** Synthetic identifiers aligned with db/seed/dev_seed.sql. */
+/** Synthetic identifiers aligned with backend/db/seed/dev_seed.sql. */
 public final class Fixtures {
     public static final TenantId TENANT_A = TenantId.of("10000000-0000-4000-8000-000000000001");
     public static final TenantId TENANT_B = TenantId.of("20000000-0000-4000-8000-000000000001");

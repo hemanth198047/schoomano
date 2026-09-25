@@ -11,6 +11,9 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -18,9 +21,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      # Unit tests (core policy/config) + Testcontainers API tests (Docker is available on ubuntu runners).
+      # Core policy/config unit tests + Testcontainers API tests (Docker is available on ubuntu runners).
       - name: Build and test
-        working-directory: backend
         run: mvn -B -ntp verify
 
   database:
@@ -40,26 +42,68 @@ jobs:
       PGPASSWORD: ci-owner-only
     steps:
       - uses: actions/checkout@v4
-      - name: Migrate, seed and run RLS/invariant tests
+      - name: Migrate, seed twice (idempotency), run RLS/invariant and API-query tests
         run: |
           P="psql -h localhost -U schoomano_owner -d schoomano -v ON_ERROR_STOP=1"
           $P -c "create role schoomano_app login password 'ci-app-only' nobypassrls"
           for f in backend/schoomano-app/src/main/resources/db/migration/V*.sql; do $P -f "$f"; done
-          $P -f db/seed/dev_seed.sql
-          $P -f db/tests/rls_and_invariants_test.sql
-          $P -f db/tests/app_queries_smoke_test.sql
+          $P -f backend/db/seed/dev_seed.sql
+          $P -f backend/db/seed/dev_seed.sql
+          $P -f backend/db/tests/rls_and_invariants_test.sql
+          $P -f backend/db/tests/app_queries_smoke_test.sql
 
-  web:
+  frontend:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - name: Tokens, typecheck, lint, format, tests (incl. axe), build
         run: npm run check
+
+  scripts-and-infra:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck (POSIX sh scripts)
+        run: |
+          shellcheck -s sh -x -P SCRIPTDIR scripts/*.sh scripts/lib/common.sh
+          shellcheck backend/scripts/*.sh
+      - name: PowerShell scripts parse
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-ChildItem scripts -Recurse -Filter *.ps1 | ForEach-Object {
+            $t = $null; $e = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$t, [ref]$e) | Out-Null
+            if ($e.Count) { $bad++; $e | ForEach-Object { Write-Host "$($_.Extent.File):$($_.Extent.StartLineNumber) $($_.Message)" } }
+          }
+          if ($bad) { exit 1 }
+      - name: Compose file resolves
+        run: cp .env.example .env && docker compose --env-file .env -f infra/docker-compose.yml -p schoomano config --quiet
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile
+
+  images:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        run: docker buildx build --load -t schoomano-backend:ci backend
+      - name: Build frontend image
+        run: docker buildx build --load -t schoomano-frontend:ci frontend
 
   secrets-scan:
     runs-on: ubuntu-24.04

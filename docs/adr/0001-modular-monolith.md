@@ -9,7 +9,7 @@ The spec (§13) recommends a modular monolith with events/outbox, PostgreSQL as 
 - One deployable backend (`backend/schoomano-app`) with bounded packages per domain.
 - A separate Maven module `schoomano-core` holds framework-free domain rules (tenancy scopes, authorization policy, config resolution). It has no Spring or JDBC dependency, so the rules that protect children are testable in milliseconds and cannot quietly depend on infrastructure.
 - PostgreSQL 16 with Flyway migrations; transactional outbox table for events; object storage, queue and Redis are added when a slice first needs them (not before).
-- React + TypeScript + Vite for the admin web; design tokens shared through `packages/design-tokens`.
+- React + TypeScript + Vite for the admin web; design tokens in `frontend/design-tokens` (published as a package once the mobile app needs them).
 
 ## Consequences
 - Service extraction stays possible along module boundaries but is not planned until load evidence exists.

@@ -1,11 +1,21 @@
+# Local configuration and runtime state
 .env
 *.env.local
+.run/
+
+# Backend
 target/
+*.iml
+.idea/
+
+# Frontend
 node_modules/
 dist/
 coverage/
-.idea/
+*.tsbuildinfo
+frontend/src/styles/tokens.generated.css
+
+# Editors / OS
 .vscode/
-*.iml
 .DS_Store
-web/src/styles/tokens.generated.css
+Thumbs.db

@@ -58,7 +58,9 @@ class StageAApiIT {
             s.execute("create role schoomano_app login password 'app-test-only'");
         }
         Flyway.configure().dataSource(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword()).load().migrate();
-        String seed = Files.readString(Path.of("../../db/seed/dev_seed.sql"));
+        // The seed starts with a psql-only re-run guard; JDBC executes the SQL from "begin;" onwards.
+        String file = Files.readString(Path.of("../db/seed/dev_seed.sql"));
+        String seed = file.substring(file.indexOf("\nbegin;") + 1);
         try (var c = DriverManager.getConnection(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword());
              var s = c.createStatement()) {
             s.execute(seed);

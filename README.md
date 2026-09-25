@@ -1,92 +1,76 @@
 # Schoomano
 
-Multi-tenant school operations platform for Indian K-12 school groups. This repository is at **Stage A (foundation)**: tenancy with PostgreSQL row-level security, identity/roles/guardian relationships, authorization policy, effective-dated configuration and feature flags, audit, the admin web shell and design system.
+School operations platform for Indian K-12 schools. Pilot: one premium school running CBSE and State-board programmes, alongside its current system for one term.
 
-Read first: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) (what is real, verified, or untested), [`docs/SPEC_BASELINE.md`](docs/SPEC_BASELINE.md) (open decisions), [`docs/BACKLOG.md`](docs/BACKLOG.md), [`docs/adr/`](docs/adr).
+This repository is at **Stage A (foundation)**. Read [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for what is verified, what is only implemented, and what has never run.
 
-> All data in this repository is synthetic. Do not load real student or guardian data into any environment until the pilot checklist in `docs/RELEASE_CHECKLIST.md` is complete.
+> All data here is synthetic. Do not load real student or guardian data anywhere until the pilot gates in `docs/RELEASE_CHECKLIST.md` are complete (including DPDP legal review).
 
 ## Layout
 
 ```
-backend/schoomano-core   framework-free rules: tenancy scopes, access policy, config resolution (+ unit tests)
-backend/schoomano-app    Spring Boot API, Flyway migrations, security (+ Testcontainers tests)
-db/seed, db/tests        synthetic seed data; SQL tests for RLS and invariants
-packages/design-tokens   design tokens → CSS variables and a TS object
-web                      React admin web app
-docs                     status, ADRs, API contract, security, design system
+backend/     Java 21 + Spring Boot API, Flyway migrations, synthetic seed, DB tests   → backend/README.md
+frontend/    React web app + design tokens, served by nginx in its container          → frontend/README.md
+infra/       docker-compose.yml for the full local stack; PostgreSQL init
+scripts/     start / stop / status / logs / seed / db-test  (.sh, .ps1, .cmd)
+docs/        status, decisions (ADRs), backlog, API contract, security, design system
 ```
 
-## Prerequisites
+Frontend and backend are independent: separate builds, separate images, connected only through `/api/v1` ([ADR 0008](docs/adr/0008-separate-frontend-backend-and-runtime.md)).
 
-JDK 21, Maven 3.9+, Docker Desktop (or Docker Engine) with Compose, Node.js 22+ and npm.
+## Quick start
 
-## First run
+The only prerequisite for the default mode is **Docker** (Docker Desktop on Windows/macOS, Docker Engine with the compose plugin on Linux). The first start builds both images and takes several minutes; later starts are fast. A `.env` with random local passwords is created on first run.
 
-### Windows (PowerShell)
-
-```powershell
-# 1. Configuration and database
-Copy-Item .env.example .env          # then edit the two passwords in .env
-docker compose up -d postgres
-
-# 2. Backend (terminal 1): builds, runs Flyway migrations, starts on http://localhost:8080
-. .\scripts\load-env.ps1
-cd backend
-mvn -q install -DskipTests
-mvn -pl schoomano-app spring-boot:run
-
-# 3. Synthetic seed data (terminal 2, repo root, after the backend has started once)
-.\scripts\db-seed.ps1
-
-# 4. Web (terminal 2)
-npm install
-npm run dev:web                      # open http://localhost:5173
+**Windows** (Command Prompt or PowerShell; the `.cmd` wrappers avoid execution-policy prompts):
+```bat
+scripts\start.cmd -Seed
+scripts\status.cmd
+scripts\stop.cmd
 ```
 
-### macOS / Linux (bash)
-
-```bash
-# 1. Configuration and database
-cp .env.example .env                 # then edit the two passwords in .env
-docker compose up -d postgres
-
-# 2. Backend (terminal 1)
-set -a; source .env; set +a
-cd backend
-mvn -q install -DskipTests
-mvn -pl schoomano-app spring-boot:run
-
-# 3. Synthetic seed data (terminal 2, repo root)
-./scripts/db-seed.sh
-
-# 4. Web (terminal 2)
-npm install
-npm run dev:web                      # open http://localhost:5173
+**macOS, Linux, WSL, Git Bash:**
+```sh
+./scripts/start.sh --seed
+./scripts/status.sh
+./scripts/stop.sh
 ```
 
-On the sign-in page choose a synthetic user: **Asha** (group admin), **Ravi** (teacher), **Farah** (safeguarding lead), **Meera** (guardian of two children on two campuses), **Karan** (separated guardian, notices only) or **Other** (a different school group).
+Then open **http://localhost:8081** and pick a synthetic user: Asha (school admin), Ravi (teacher), Farah (safeguarding lead), Meera (parent of two), Karan (separated parent, notices only), Other (a different school).
 
-Quick API check (with the backend running):
+## Script reference
 
-```bash
-curl -H "Authorization: Bearer dev:dev-meera" http://localhost:8080/api/v1/me
-```
-```powershell
-Invoke-RestMethod -Headers @{ Authorization = "Bearer dev:dev-meera" } http://localhost:8080/api/v1/me
-```
+Options work in either style on every platform (`--dev` or `-Dev`).
+
+| Command (`scripts/…` .sh / .cmd / .ps1) | What it does |
+|---|---|
+| `start` | Database, backend and frontend in containers. Web on :8081, API on :8080 |
+| `start --dev` | Database in a container; backend (`java -jar`) and frontend (Vite, hot reload on :5173) as local processes. Needs JDK 21, Maven 3.9+, Node 22 |
+| `start [--dev] db\|backend\|frontend` | Start one component and what it depends on |
+| `start --seed` / `seed` | Load synthetic demo data (safe to repeat) |
+| `start --no-build` | Reuse existing images / backend jar |
+| `stop` | Stop local processes and containers; database kept |
+| `stop backend` | Stop one component |
+| `stop --purge` | Also delete the local database volume (asks you to type `delete`; `--yes` skips) |
+| `status` | Local processes, containers, health endpoints |
+| `logs [backend\|frontend\|db] [-f]` | Recent logs, optionally following |
+| `db-test` | RLS isolation, audit chain, effective dating, and API-query tests against the local database |
+
+Ports and passwords are in `.env` (see `.env.example`). Everything binds to 127.0.0.1.
 
 ## Tests
 
-| What | PowerShell | bash |
-|---|---|---|
-| Backend unit + API tests (needs Docker) | `cd backend; mvn verify` | `cd backend && mvn verify` |
-| Database RLS/invariant + query smoke tests | `.\scripts\db-test.ps1` | `./scripts/db-test.sh` |
-| Web: tokens, types, lint, format, tests incl. accessibility, build | `npm run check` | `npm run check` |
-| Core rules without Maven (fallback) | n/a | `./scripts/verify-core-without-maven.sh` |
+| What | Command |
+|---|---|
+| Backend unit + API tests (needs Docker) | `cd backend && mvn verify` |
+| Frontend: tokens, types, lint, format, tests incl. accessibility, build | `cd frontend && npm ci && npm run check` |
+| Database tests on the running stack | `scripts/db-test.sh` or `scripts\db-test.cmd` |
 
-Reset the local database (destroys local data): `.\scripts\db-reset.ps1` or `./scripts/db-reset.sh`, then restart the backend and re-seed.
+CI (`.github/workflows/ci.yml`) runs these plus script linting, Compose validation, image builds and a secrets scan.
 
-## Configuration
+## Without the scripts
 
-See `.env.example`. Production uses OIDC (`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`) and must never set `SCHOOMANO_AUTH_DEV_MODE`; the app refuses to start if dev mode is combined with the `prod` profile.
+```sh
+cp .env.example .env    # set the two passwords
+docker compose --env-file .env -f infra/docker-compose.yml -p schoomano up -d --build
+```

@@ -4,7 +4,7 @@
 - **Roles**: migrations run as the owner (`SCHOOMANO_DB_OWNER_USER`); the application runs as `schoomano_app`, which owns nothing and has `NOBYPASSRLS`. In local Docker the owner is the container superuser. **In shared environments the owner must be a non-superuser role** that owns the schema, so FORCE RLS also applies to it.
 - Every new tenant table must: carry `tenant_id`, use composite FKs `(tenant_id, id)`, `ENABLE` + `FORCE` RLS with the standard policy, grant only needed privileges to `schoomano_app`, and get a test in `db/tests/`.
 - Expand/contract for breaking changes: add column → backfill → switch code → drop in a later release.
-- Seeds in `db/seed/` are synthetic and for development only. Never run them in a shared environment.
+- Seeds in `backend/db/seed/` are re-runnable (guarded), synthetic and for development only. Never run them in a shared environment.
 
 | Version | Content |
 |---|---|

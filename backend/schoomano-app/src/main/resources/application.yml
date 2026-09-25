@@ -17,6 +17,9 @@ spring:
 
 server:
   port: ${SCHOOMANO_PORT:8080}
+  # Behind the frontend's nginx (or a load balancer): honour X-Forwarded-* headers.
+  forward-headers-strategy: framework
+  shutdown: graceful
   error:
     include-message: never
     include-stacktrace: never
@@ -27,6 +30,7 @@ schoomano:
     # Startup fails if dev mode is combined with the 'prod' profile.
     dev-mode: ${SCHOOMANO_AUTH_DEV_MODE:false}
   cors:
+    # Only needed if the web app calls the API from another origin; by default it is same-origin via a proxy.
     allowed-origins: ${SCHOOMANO_CORS_ORIGINS:http://localhost:5173}
 
 management:

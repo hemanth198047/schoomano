@@ -12,6 +12,8 @@
 
 ## Before the first shared environment
 - [ ] Spring Boot upgraded to 4.0.x (ADR 0001) and full suite green
+- [ ] Images built by CI from a tagged commit; frontend built with `VITE_DEV_AUTH=false`; images scanned for vulnerabilities
+- [ ] Cloud provider chosen (D6) and India region confirmed; managed PostgreSQL 16 with point-in-time recovery
 - [ ] `SCHOOMANO_AUTH_DEV_MODE` unset and `prod` profile active; startup guard verified
 - [ ] Migration owner is a non-superuser role
 - [ ] OIDC issuer configured and tested; MFA for admin roles
@@ -24,3 +26,5 @@
 - [ ] Restore drill meets RPO 15 min / RTO 4 h
 - [ ] Support-access procedure agreed with the school
 - [ ] Hindi (and any other shipped language) reviewed by native speakers
+- [ ] SMS sender ID and OTP templates approved under TRAI DLT; OTP rate limits load-tested
+- [ ] Coexistence runbook agreed with the school: which system is authoritative for which fields during the term

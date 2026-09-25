@@ -1,6 +1,6 @@
 # Schoomano design system
 
-Source of truth: `packages/design-tokens/tokens.json` → `npm run tokens` → CSS variables (web) and a typed TS object (mobile). CI fails if the TS output is stale or if any stylesheet references an undefined token.
+Source of truth: `frontend/design-tokens/tokens.json` → `npm run tokens` → CSS variables (web) and a typed TS object (mobile). CI fails if the TS output is stale or if any stylesheet references an undefined token.
 
 ## Direction
 Schools are busy, mixed-literacy, mixed-device environments. The interface is calm, dense where staff need density, and always explicit about **where you are acting**.
@@ -19,7 +19,7 @@ Schools are busy, mixed-literacy, mixed-device environments. The interface is ca
 - `prefers-reduced-motion` disables animation.
 - Automated axe scans run in the unit tests; a control test proves the scanner catches violations.
 
-## Components (web/src/components)
+## Components (frontend/src/components)
 `AppShell` (skip link, ink rail, scope bar, collapsible menu under 52 rem), `PageHeader`, `Button` (primary, secondary, danger, quiet; busy state), `Field`, `DataTable`, `StatusBadge`, `LoadingState`, `EmptyState`, `ErrorState` (shows the support reference/correlation id). A live gallery is at `/design-system` in the web app.
 
 ## Copy
