@@ -18,7 +18,7 @@ export default tseslint.config(
   },
   {
     // Build tooling runs in Node, not the browser.
-    files: ['design-tokens/scripts/**/*.mjs', 'vite.config.ts'],
+    files: ['scripts/**/*.mjs', 'vite.config.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
 );

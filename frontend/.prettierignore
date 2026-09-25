@@ -1,5 +1,4 @@
 dist
 coverage
 src/styles/tokens.generated.css
-design-tokens/src/tokens.ts
 node_modules

@@ -3,7 +3,7 @@
 Status: Accepted (2026-09-25)
 
 ## Decision
-`AccessPolicy.decide(actor, permission, resource, now)` in `schoomano-core`, deny by default, in this order:
+`AccessPolicy.decide(actor, permission, resource, now)` in `com.schoomano.domain.access` (plain Java, see ADR 0001), deny by default, in this order:
 
 1. **Tenant**: actor and resource tenants must match. Always audited on mismatch.
 2. **Support**: platform support acts only under a tenant-approved, time-limited `SupportSession`, with read-only operational permissions, never restricted data (M30).

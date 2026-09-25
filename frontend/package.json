@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "tokens": "node design-tokens/scripts/build.mjs",
-    "tokens:check": "node design-tokens/scripts/build.mjs --check",
+    "tokens": "node scripts/build-tokens.mjs",
+    "tokens:check": "node scripts/build-tokens.mjs --check",
     "predev": "npm run tokens",
     "dev": "vite",
     "prebuild": "npm run tokens",

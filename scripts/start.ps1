@@ -61,7 +61,7 @@ function Start-DevBackend {
         Stop-WithError "The backend container is running on port $($script:ApiPort). Run scripts\stop.cmd backend first."
     }
     if (-not (Test-Command java)) { Stop-WithError 'Java 21 (JDK) is required for -Dev backend.' }
-    $jar = Join-Path $script:Root 'backend/schoomano-app/target/schoomano-app.jar'
+    $jar = Join-Path $script:Root 'backend/target/schoomano.jar'
     if ($Build -or -not (Test-Path $jar)) {
         if (-not (Test-Command mvn)) { Stop-WithError 'Maven 3.9+ is required for -Dev backend (or use container mode: scripts\start.cmd).' }
         Write-Info "Building backend (mvn package, tests skipped; run 'cd backend; mvn verify' for tests)"

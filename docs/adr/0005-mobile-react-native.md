@@ -7,7 +7,7 @@ Status: Proposed, confirm after the Stage B usability prototype (spec §6 asks t
 - **Flutter**: excellent rendering on low-end Android and a strong single codebase, but a second language (Dart) and no code sharing with the React web.
 
 ## Decision (proposed)
-React Native with Expo, one role-adaptive app (guardian, teacher, transport, coach views selected by server-side roles). Reasons: one language across web and mobile for a small team, shared tokens (`packages/design-tokens` already emits a TS object for this), and shared offline-queue logic for attendance and boarding.
+React Native with Expo, one role-adaptive app (guardian, teacher, transport, coach views selected by server-side roles). Reasons: one language across web and mobile for a small team, shared design tokens (one `tokens.json` can generate both the web CSS and a React Native theme), and shared offline-queue logic for attendance and boarding.
 
 ## Validation before commitment
 A two-week prototype of teacher offline attendance on a low-end Android device (2 GB RAM class) with a cold-start budget of 3 s and a 60-student roster; plus a guardian child-switcher flow tested with 5 parents. If the device budget fails, revisit Flutter for field-staff apps only.

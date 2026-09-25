@@ -109,7 +109,7 @@ running_pid() {
   pid=$(cat "$f"); [ -n "$pid" ] || return 1
   kill -0 "$pid" 2>/dev/null || { rm -f "$f"; return 1; }
   case "$1" in
-    backend)  marker=schoomano-app.jar ;;
+    backend)  marker=schoomano.jar ;;
     frontend) marker=vite ;;
     *)        marker= ;;
   esac

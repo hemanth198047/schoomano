@@ -4,12 +4,9 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
 COPY pom.xml ./
-COPY schoomano-core/pom.xml schoomano-core/
-COPY schoomano-app/pom.xml schoomano-app/
-COPY schoomano-core/src schoomano-core/src
-COPY schoomano-app/src schoomano-app/src
+COPY src src
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -DskipTests package \
- && cp schoomano-app/target/schoomano-app.jar /src/app.jar
+ && cp target/schoomano.jar /src/app.jar
 
 FROM eclipse-temurin:21-jre
 # curl is only for the container health check. Unpinned on purpose: exact apt pins break the build

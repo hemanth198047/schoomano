@@ -9,8 +9,8 @@ This repository is at **Stage A (foundation)**. Read [`docs/IMPLEMENTATION_STATU
 ## Layout
 
 ```
-backend/     Java 21 + Spring Boot API, Flyway migrations, synthetic seed, DB tests   → backend/README.md
-frontend/    React web app + design tokens, served by nginx in its container          → frontend/README.md
+backend/     one Spring Boot project (Java 21): API, migrations, synthetic seed, DB tests → backend/README.md
+frontend/    one React project: web app and design tokens, served by nginx               → frontend/README.md
 infra/       docker-compose.yml for the full local stack; PostgreSQL init
 scripts/     start / stop / status / logs / seed / db-test  (.sh, .ps1, .cmd)
 docs/        status, decisions (ADRs), backlog, API contract, security, design system
@@ -35,6 +35,12 @@ scripts\stop.cmd
 ./scripts/status.sh
 ./scripts/stop.sh
 ```
+
+**Windows: "script is not digitally signed"?** Files from a downloaded zip are marked as coming from the internet, and PowerShell's default policy blocks them. Use the `.cmd` wrappers above, or unblock the project once:
+```powershell
+Get-ChildItem -Path . -Recurse | Unblock-File
+```
+If your organisation enforces the policy through Group Policy, only unblocking works.
 
 Then open **http://localhost:8081** and pick a synthetic user: Asha (school admin), Ravi (teacher), Farah (safeguarding lead), Meera (parent of two), Karan (separated parent, notices only), Other (a different school).
 

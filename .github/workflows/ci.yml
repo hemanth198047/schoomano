@@ -21,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      # Core policy/config unit tests + Testcontainers API tests (Docker is available on ubuntu runners).
+      # Domain unit tests (incl. domain purity) + Testcontainers API tests (Docker is available on ubuntu runners).
       - name: Build and test
         run: mvn -B -ntp verify
 
@@ -46,7 +46,7 @@ jobs:
         run: |
           P="psql -h localhost -U schoomano_owner -d schoomano -v ON_ERROR_STOP=1"
           $P -c "create role schoomano_app login password 'ci-app-only' nobypassrls"
-          for f in backend/schoomano-app/src/main/resources/db/migration/V*.sql; do $P -f "$f"; done
+          for f in backend/src/main/resources/db/migration/V*.sql; do $P -f "$f"; done
           $P -f backend/db/seed/dev_seed.sql
           $P -f backend/db/seed/dev_seed.sql
           $P -f backend/db/tests/rls_and_invariants_test.sql

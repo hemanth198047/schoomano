@@ -1,6 +1,6 @@
 # Schoomano design system
 
-Source of truth: `frontend/design-tokens/tokens.json` → `npm run tokens` → CSS variables (web) and a typed TS object (mobile). CI fails if the TS output is stale or if any stylesheet references an undefined token.
+Source of truth: `frontend/src/styles/tokens.json` → `npm run tokens` → CSS variables in `tokens.generated.css`. CI fails if any stylesheet references an undefined token. The mobile app will generate its theme from the same JSON.
 
 ## Direction
 Schools are busy, mixed-literacy, mixed-device environments. The interface is calm, dense where staff need density, and always explicit about **where you are acting**.

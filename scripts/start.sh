@@ -59,7 +59,7 @@ start_dev_backend() {
     die "The backend container is running on port $API_PORT. Run scripts/stop.sh backend first."
   fi
   have java || die "Java 21 (JDK) is required for --dev backend."
-  jar="$ROOT/backend/schoomano-app/target/schoomano-app.jar"
+  jar="$ROOT/backend/target/schoomano.jar"
   if [ "$BUILD" = 1 ] || [ ! -f "$jar" ]; then
     have mvn || die "Maven 3.9+ is required for --dev backend (or use container mode: scripts/start.sh)."
     info "Building backend (mvn package, tests skipped; run 'cd backend && mvn verify' for tests)"
