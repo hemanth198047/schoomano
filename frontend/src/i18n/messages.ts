@@ -6,6 +6,7 @@ export const en = {
   'app.name': 'Schoomano',
   'nav.today': 'Today',
   'nav.campuses': 'Campuses',
+  'nav.students': 'Students',
   'nav.academic': 'Academic structure',
   'nav.imports': 'Imports',
   'nav.configuration': 'Settings and rules',

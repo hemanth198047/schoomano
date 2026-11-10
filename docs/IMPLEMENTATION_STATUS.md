@@ -1,6 +1,6 @@
 # Implementation status
 
-Living document, updated at the end of every slice. Last update: **2026-11-10, Stage A.1 (CI green) + B1 academic structure + B2 repeatable import**.
+Living document, updated at the end of every slice. Last update: **2026-11-10, Stage A.1 (CI green) + B1 academic structure + B2 repeatable import + B3 students and guardians**.
 
 Status values: **Not started**, **In progress**, **Implemented** (code complete, tests written), **Verified** (tests executed and passing, evidence linked), **Deferred** (deliberately postponed, reason given).
 
@@ -30,6 +30,7 @@ Nothing below claims production readiness. No module has been used by a real sch
 | Repeatable import, rules (B2) | **Verified** | `com.schoomano.domain.imports`: RFC 4180 CSV parser and `StudentImport` three-way planner, 13 unit tests (header aliases, Indian and Excel-serial dates, duplicates, unlinked collisions, old-system change applied, Schoomano edit kept, both changed = conflict with nothing applied, missing students listed not deleted). `.xlsx` reader without new dependencies, hardened against XXE and zip bombs (4 tests) |
 | Repeatable import, API (B2) | **Verified** | V5 tables with RLS (DB test T13). `ImportApiIT` 4/4: dry run writes no student; commit applies exactly the dry run; same file again = all unchanged; three-way conflicts never overwritten; commit refused with `stale_preview` if records changed after the check; only the latest batch rolls back and reverts the change; teachers 403, guardians and other tenants 404. **5,000 students validate + commit in 2.3 s** (target < 60 s); repeat checks stay fast right after a large first import (a plan regression from stale statistics was found and designed out) |
 | Repeatable import, web (B2) | **Verified** | `/imports` page: upload .csv/.xlsx, dry-run report with errors and conflicts first, import, discard, history, rollback of the latest import with a list of what was kept. 6 tests incl. axe (one duplicate-landmark finding fixed). Checked end to end in a browser: import, re-import ("Nothing to import"), rollback |
+| Students and guardians (B3) | **Verified** | V6 (unique Indian mobile per tenant, one open relationship per guardian and child). Domain `IndianMobile` + `RelationshipRules` (6 tests). `StudentApiIT` 5/5: staff profile shows guardians, capabilities and households; **separated guardian (Karan) sees only the child's name, no placement, no birth date and never the other parent**; full guardian sees placement but not other guardians; teachers read their campus only and cannot edit; old-system fields refused with `owned_by_old_system`; same mobile links the same person, invalid mobiles rejected; restricting requires a reason (stored in the audit event), defaults to notices only, pickup only when confirmed, household no longer shared; ended relationships cannot be reopened; a mobile cannot move to someone who has it. Web: `/students` list and profile with guardian cards, change-relationship and add-guardian forms (5 tests incl. axe), checked in a browser |
 | CI pipeline (6 jobs) | **Verified** | Run #2 on `main` (2026-11-10): all 6 jobs green, including both container image builds and the gitleaks scan |
 | API contract | **Verified** (lint) | `docs/api/openapi.yaml` valid per Redocly CLI |
 
@@ -37,9 +38,9 @@ Nothing below claims production readiness. No module has been used by a real sch
 
 | Module | Priority | Status | Notes / evidence |
 |---|---|---|---|
-| M01 Organization and identity | P0 | **In progress** | Data model, policy engine and `/me` done. Parent phone OTP designed (ADR 0009). Missing: OTP and staff OIDC/MFA implementation (B4), invitations, custom roles UI, relationship admin UI (B3) |
+| M01 Organization and identity | P0 | **In progress** | Data model, policy engine, `/me`, guardian relationship admin (B3). Parent phone OTP designed (ADR 0009). Missing: OTP and staff OIDC/MFA implementation (B4), invitations, custom roles UI |
 | M02 Admissions CRM | P1 | Not started | `student_enrollment` table exists as a dependency only |
-| M03 Student information | P0 | Not started | `person`/`household` base tables exist; B3 |
+| M03 Student information | P0 | **Implemented (B3)** | Student list and profile, create, edit with old-system lock, placement, households, guardians with capabilities and reasons. Missing: documents, medical flags (Phase 2 M12), sibling/household admin screens, merge of duplicates |
 | M04 Academic structure and calendar | P0 | **Implemented (B1 done)** | Per-programme grades, subjects (retire, never delete), terms (no overlap, inside year), sections, campus calendar, academic-year lifecycle (planned → active → closed, one active per campus), grade scales as effective-dated config per programme, rollover preview and one-time committed rollover; all writes audited. Open: which state board (D2) for the real State grade scale |
 | M05 Scheduling and substitutions | P0 | Not started | B5 |
 | M06 Attendance | P0 | Not started | Config key `attendance.late_after_minutes` exists; B6 |
@@ -79,4 +80,5 @@ Nothing below claims production readiness. No module has been used by a real sch
 7. `config_version.value` is checked server-side only for known keys (`attendance.late_after_minutes`, `assessment.grade_scale`, `flag.*`); other keys accept any JSON.
 8. B1 web offers add/remove for terms and add for the rest; renaming grades, retiring subjects and changing section capacity exist in the API but not yet as web controls. Rollover never edits the source year, so final-grade students stay ENROLLED there until the year is closed.
 9. Import file contents are kept in `import_batch.file_table` to re-check plans at commit (retention class TRANSIENT; a purge job is not built yet).
-10. Fixed earlier: wide tables made the whole page scroll sideways on phones (grid column blowout); the dev backend now runs a copy of the jar from `.run/`, so `mvn verify` can no longer replace the jar under a running JVM (seen here as a hung API).
+10. The web bundle is 99.4 kB gzip of the 120 kB budget (D8); route-level code splitting is due before B5.
+11. Fixed earlier: wide tables made the whole page scroll sideways on phones (grid column blowout); the dev backend now runs a copy of the jar from `.run/`, so `mvn verify` can no longer replace the jar under a running JVM (seen here as a hung API).

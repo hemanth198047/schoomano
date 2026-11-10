@@ -3,6 +3,7 @@ package com.schoomano;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
+import java.util.List;
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -29,8 +30,12 @@ abstract class ApiITSupport {
             ownerSql("create role schoomano_app login password 'app-test-only'");
             Flyway.configure().dataSource(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword()).load().migrate();
             // Seeds start with a psql-only re-run guard; JDBC executes the SQL from "begin;" onwards.
-            for (String f : new String[] {"db/seed/dev_seed.sql", "db/seed/dev_seed_academic.sql"}) {
-                String file = Files.readString(Path.of(f));
+            List<Path> seeds;
+            try (var files = Files.list(Path.of("db/seed"))) {
+                seeds = files.filter(f -> f.toString().endsWith(".sql")).sorted().toList();
+            }
+            for (Path f : seeds) {
+                String file = Files.readString(f);
                 ownerSql(file.substring(file.indexOf("\nbegin;") + 1));
             }
         } catch (Exception e) {

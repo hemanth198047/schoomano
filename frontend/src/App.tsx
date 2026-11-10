@@ -10,6 +10,7 @@ import { CampusesPage } from './pages/CampusesPage';
 import { ImportsPage } from './pages/ImportsPage';
 import { DesignSystemPage } from './pages/DesignSystemPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { StudentProfilePage, StudentsPage } from './pages/StudentsPage';
 import { SignInPage } from './pages/SignInPage';
 import { TodayPage } from './pages/TodayPage';
 
@@ -48,6 +49,16 @@ function SignedIn() {
     >
       <Routes>
         <Route path="/" element={<TodayPage me={me.data} />} />
+        <Route
+          path="/students"
+          element={
+            <StudentsPage
+              campuses={campuses.status === 'ready' ? campuses.data : []}
+              selectedCampusId={selectedCampusId}
+            />
+          }
+        />
+        <Route path="/students/:studentId" element={<StudentProfilePage me={me.data} />} />
         <Route path="/campuses" element={<CampusesPage />} />
         <Route
           path="/academic"

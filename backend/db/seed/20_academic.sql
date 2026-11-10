@@ -1,4 +1,4 @@
--- SYNTHETIC academic structure (B1) for the demo tenant. Runs after dev_seed.sql.
+-- SYNTHETIC academic structure (B1) for the demo tenant. Runs after 10_base.sql.
 -- Re-runnable: does nothing if grades already exist, or if the base seed is missing.
 -- Deterministic ids: md5(<label>)::uuid, so dev logins and tests can refer to rows.
 

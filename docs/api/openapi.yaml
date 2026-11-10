@@ -640,6 +640,184 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/academic-years/{yearId}/students:
+    get:
+      summary: "Students enrolled in the year (STUDENT_READ_BASIC on the campus). Search by name or admission number."
+      operationId: listStudents
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+        - { name: q, in: query, schema: { type: string } }
+        - { name: sectionId, in: query, schema: { type: string, format: uuid } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentPage' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      summary: "Create a student enrolled in the year (STUDENT_WRITE). Admission number generated when omitted. Audited."
+      operationId: createStudent
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [givenName]
+              properties:
+                givenName: { type: string, maxLength: 80 }
+                familyName: { type: string, maxLength: 80 }
+                preferredName: { type: string, maxLength: 80 }
+                dateOfBirth: { type: string, format: date }
+                schoolRef: { type: string, pattern: '^[A-Za-z0-9/_-]{1,40}$' }
+                sectionId: { type: string, format: uuid }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentProfile' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/students/{studentId}:
+    get:
+      summary: "Student profile. view=STAFF (role access) includes guardians and households; view=GUARDIAN (relationship access) shows only what the relationship allows and never other guardians."
+      operationId: getStudent
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentProfile' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      summary: "Edit a student (STUDENT_WRITE). Fields owned by the old system during coexistence are refused with owned_by_old_system. Audited."
+      operationId: updateStudent
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                givenName: { type: string }
+                familyName: { type: string }
+                preferredName: { type: string }
+                dateOfBirth: { type: string, format: date }
+                academicYearId: { type: string, format: uuid }
+                sectionId: { type: string, format: uuid }
+                clearSection: { type: boolean }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentProfile' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/students/{studentId}/guardians:
+    post:
+      summary: "Link a guardian (STUDENT_WRITE + PERSON_MANAGE). An Indian mobile already on record links that person; one open relationship per guardian and child. Reason required. Audited."
+      operationId: addGuardian
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [givenName, mobile, relationshipType, status, capabilities, reason]
+              properties:
+                givenName: { type: string, maxLength: 80 }
+                familyName: { type: string, maxLength: 80 }
+                mobile: { type: string, description: 10-digit Indian mobile in any common format }
+                email: { type: string }
+                relationshipType: { type: string, enum: [MOTHER, FATHER, GUARDIAN, GRANDPARENT, OTHER] }
+                status: { type: string, enum: [ACTIVE, RESTRICTED] }
+                capabilities: { type: array, items: { $ref: '#/components/schemas/GuardianCapability' } }
+                pickupConfirmed: { type: boolean }
+                reason: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentProfile' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/guardian-relationships/{relationshipId}:
+    patch:
+      summary: "Change a relationship status and capabilities with a reason. Restricted guardians keep pickup only when confirmed; ended relationships cannot be reopened. Audited with before and after."
+      operationId: updateGuardianRelationship
+      parameters:
+        - { name: relationshipId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, capabilities, reason]
+              properties:
+                status: { type: string, enum: [ACTIVE, RESTRICTED, SUSPENDED, ENDED] }
+                capabilities: { type: array, items: { $ref: '#/components/schemas/GuardianCapability' } }
+                pickupConfirmed: { type: boolean }
+                reason: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentProfile' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/guardians/{guardianId}:
+    patch:
+      summary: "Change a guardian name, mobile or email with a reason (PERSON_MANAGE for one of their children). mobile_in_use if the number belongs to someone else. Audited."
+      operationId: updateGuardian
+      parameters:
+        - { name: guardianId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                givenName: { type: string }
+                familyName: { type: string }
+                mobile: { type: string }
+                email: { type: string }
+                reason: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '200':
+          description: OK
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
@@ -702,7 +880,7 @@ components:
         detail: { type: string }
         code:
           type: string
-          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large]
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected]
         correlationId: { type: string }
         problems:
           type: array
@@ -971,6 +1149,72 @@ components:
                     field: { type: string, enum: [givenName, familyName, dateOfBirth, placement] }
                     before: { type: string }
                     after: { type: string }
+
+    StudentPage:
+      type: object
+      properties:
+        total: { type: integer }
+        students:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              schoolRef: { type: string }
+              displayName: { type: string }
+              programmeCode: { type: string }
+              gradeName: { type: string }
+              sectionCode: { type: string }
+              sectionId: { type: string, format: uuid }
+              guardians: { type: integer }
+              source: { type: string, enum: [LEGACY, SCHOOMANO] }
+              status: { type: string }
+
+    StudentProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        schoolRef: { type: string }
+        givenName: { type: string }
+        familyName: { type: string }
+        preferredName: { type: string }
+        dateOfBirth: { type: string, format: date, description: Omitted for guardians without academic access }
+        status: { type: string }
+        view: { type: string, enum: [STAFF, GUARDIAN] }
+        source: { type: string }
+        ownedFields: { type: array, items: { type: string }, description: Old-system fields that are read-only during coexistence }
+        placements:
+          type: array
+          items:
+            type: object
+            properties:
+              academicYearId: { type: string, format: uuid }
+              yearLabel: { type: string }
+              campusName: { type: string }
+              programmeCode: { type: string }
+              gradeName: { type: string }
+              sectionCode: { type: string }
+              sectionId: { type: string, format: uuid }
+              status: { type: string }
+        guardians:
+          type: array
+          description: Staff view only
+          items:
+            type: object
+            properties:
+              relationshipId: { type: string, format: uuid }
+              guardianId: { type: string, format: uuid }
+              displayName: { type: string }
+              givenName: { type: string }
+              familyName: { type: string }
+              mobile: { type: string, examples: ['+91 98450 12345'] }
+              email: { type: string }
+              relationshipType: { type: string }
+              status: { type: string, enum: [ACTIVE, RESTRICTED, SUSPENDED, ENDED] }
+              capabilities: { type: array, items: { $ref: '#/components/schemas/GuardianCapability' } }
+              sharesHousehold: { type: boolean }
+        households: { type: array, items: { type: string } }
+        yourCapabilities: { type: array, items: { $ref: '#/components/schemas/GuardianCapability' }, description: Guardian view only }
 
     DateRange:
       type: object

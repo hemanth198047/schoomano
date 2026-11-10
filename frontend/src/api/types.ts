@@ -189,3 +189,63 @@ export interface ImportRollbackResult {
   linksRestored: number;
   kept: string[];
 }
+
+export interface StudentListItem {
+  id: string;
+  schoolRef: string;
+  displayName: string;
+  programmeCode?: string;
+  gradeName?: string;
+  sectionCode?: string;
+  sectionId?: string;
+  guardians: number;
+  source?: string;
+  status: string;
+}
+
+export interface StudentPage {
+  total: number;
+  students: StudentListItem[];
+}
+
+export type Capability = GuardianCapability;
+
+export interface GuardianView {
+  relationshipId: string;
+  guardianId: string;
+  displayName: string;
+  givenName: string;
+  familyName?: string;
+  mobile?: string;
+  email?: string;
+  relationshipType: string;
+  status: 'ACTIVE' | 'RESTRICTED' | 'SUSPENDED' | 'ENDED';
+  capabilities: GuardianCapability[];
+  sharesHousehold: boolean;
+}
+
+export interface StudentProfile {
+  id: string;
+  schoolRef: string;
+  givenName: string;
+  familyName?: string;
+  preferredName?: string;
+  dateOfBirth?: string;
+  status: string;
+  view: 'STAFF' | 'GUARDIAN';
+  source?: string;
+  ownedFields: string[];
+  placements: {
+    academicYearId: string;
+    yearLabel: string;
+    campusName: string;
+    programmeCode?: string;
+    gradeName?: string;
+    sectionCode?: string;
+    sectionId?: string;
+    status: string;
+  }[];
+  guardians: GuardianView[];
+  households: string[];
+  yourCapabilities: GuardianCapability[];
+}

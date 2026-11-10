@@ -348,6 +348,45 @@ code {
   max-width: 34rem;
 }
 
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-4);
+}
+
+.details dt {
+  font-weight: var(--font-weight-bold);
+}
+
+.details dd {
+  margin: 0;
+}
+
+.fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-touch-target);
+}
+
+.guardian {
+  margin-block-end: var(--space-4);
+}
+
+.form__actions--end {
+  align-self: end;
+}
+
 .count-chip {
   display: inline-flex;
   align-items: center;
