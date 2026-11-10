@@ -134,3 +134,15 @@ export interface RolloverPreview {
   promotions: { programmeCode: string; fromGrade: string; toGrade: string | null; students: number }[];
   warnings: string[];
 }
+
+export interface RolloverResult {
+  yearId: string;
+  label: string;
+  startsOn: string;
+  endsOn: string;
+  termsCreated: number;
+  sectionsCreated: number;
+  studentsPlaced: number;
+  studentsUnplaced: number;
+  studentsCompleted: number;
+}

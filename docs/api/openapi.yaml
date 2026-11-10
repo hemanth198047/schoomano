@@ -324,6 +324,204 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/campuses/{campusId}/academic-years:
+    post:
+      summary: Create an academic year (PLANNED). Years of one campus never overlap. Audited.
+      operationId: createAcademicYear
+      parameters:
+        - $ref: '#/components/parameters/CampusId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, startsOn, endsOn]
+              properties:
+                label: { type: string, maxLength: 20 }
+                startsOn: { type: string, format: date }
+                endsOn: { type: string, format: date }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcademicYear' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/activate:
+    post:
+      summary: Make a PLANNED year active; the previously active year of the campus is closed. Audited.
+      operationId: activateAcademicYear
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcademicYear' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/close:
+    post:
+      summary: Close the active year. Audited.
+      operationId: closeAcademicYear
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcademicYear' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/rollover:
+    post:
+      summary: "Commit the rollover: next year (PLANNED) with terms and sections copied a year forward and students promoted one grade (same section letter when it exists). The source year is unchanged; a year rolls over once. Audited, emits outbox event."
+      operationId: commitRollover
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RolloverResult' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/terms/{termId}:
+    patch:
+      summary: Change a term's label or dates (same rules as creation). Audited.
+      operationId: updateTerm
+      parameters:
+        - { name: termId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, startsOn, endsOn]
+              properties:
+                label: { type: string, maxLength: 40 }
+                startsOn: { type: string, format: date }
+                endsOn: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Term' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      summary: Remove a term. Audited.
+      operationId: deleteTerm
+      parameters:
+        - { name: termId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/grades/{gradeId}:
+    patch:
+      summary: Rename a grade. Audited.
+      operationId: renameGrade
+      parameters:
+        - { name: gradeId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 80 }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/subjects/{subjectId}:
+    patch:
+      summary: Rename or retire a subject (subjects are never deleted). Audited.
+      operationId: updateSubject
+      parameters:
+        - { name: subjectId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 80 }
+                status: { type: string, enum: [ACTIVE, RETIRED] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subject' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/sections/{sectionId}:
+    patch:
+      summary: Change a section's capacity (not below its placed students). Audited.
+      operationId: updateSection
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                capacity: { type: [integer, 'null'], minimum: 1, maximum: 200 }
+      responses:
+        '200': { description: OK }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      summary: Remove a section with no student placements (`section_in_use` otherwise). Audited.
+      operationId: deleteSection
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/calendar-events/{eventId}:
+    delete:
+      summary: Remove a calendar entry. Audited.
+      operationId: deleteCalendarEvent
+      parameters:
+        - { name: eventId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
@@ -605,6 +803,19 @@ components:
         calendar:
           type: array
           items: { $ref: '#/components/schemas/CalendarEvent' }
+
+    RolloverResult:
+      type: object
+      properties:
+        yearId: { type: string, format: uuid }
+        label: { type: string }
+        startsOn: { type: string, format: date }
+        endsOn: { type: string, format: date }
+        termsCreated: { type: integer }
+        sectionsCreated: { type: integer }
+        studentsPlaced: { type: integer }
+        studentsUnplaced: { type: integer, description: "Carried forward without a section: no section in the next grade, or none before" }
+        studentsCompleted: { type: integer, description: "Final-grade students, not carried into the new year" }
 
     DateRange:
       type: object

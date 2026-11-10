@@ -64,6 +64,14 @@ abstract class ApiITSupport {
         }
     }
 
+    static String ownerString(String sql) throws Exception {
+        try (var c = DriverManager.getConnection(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword());
+             var s = c.createStatement(); var rs = s.executeQuery(sql)) {
+            rs.next();
+            return rs.getString(1);
+        }
+    }
+
     private static void ownerSql(String sql) throws Exception {
         try (var c = DriverManager.getConnection(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword());
              var s = c.createStatement()) {

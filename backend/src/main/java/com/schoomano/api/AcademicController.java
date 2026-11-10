@@ -48,12 +48,15 @@ public class AcademicController {
     private final ScopeDirectory scopes;
     private final Authorizer authz;
     private final AuditWriter audit;
+    private final AcademicAccess access;
 
-    public AcademicController(TenantTx tenantTx, ScopeDirectory scopes, Authorizer authz, AuditWriter audit) {
+    public AcademicController(TenantTx tenantTx, ScopeDirectory scopes, Authorizer authz, AuditWriter audit,
+                              AcademicAccess access) {
         this.tenantTx = tenantTx;
         this.scopes = scopes;
         this.authz = authz;
         this.audit = audit;
+        this.access = access;
     }
 
     // ---- views ----------------------------------------------------------------------------------
@@ -84,12 +87,6 @@ public class AcademicController {
                                        @NotBlank @Size(max = 120) String title, @NotNull LocalDate startsOn,
                                        @NotNull LocalDate endsOn, UUID programmeId) { }
 
-    private record Year(UUID id, UUID campusId, String label, DateRange dates, String status) {
-        YearView view() {
-            return new YearView(id, label, dates.startsOn(), dates.endsOn(), status);
-        }
-    }
-
     // ---- reads ----------------------------------------------------------------------------------
 
     @GetMapping("/campuses/{campusId}/academic-structure")
@@ -99,11 +96,11 @@ public class AcademicController {
             ScopePath campus = scopes.campusPath(jdbc, ctx.tenant(), campusId).orElseThrow(ApiException::notFound);
             authz.requireOrNotFound(jdbc, ctx, Permission.CAMPUS_READ, Resource.ordinary("campus", campusId, campus, null));
             String campusName = jdbc.queryForObject("select name from campus where id = ?", String.class, campusId);
-            List<Year> years = jdbc.query("""
+            List<AcademicAccess.Year> years = jdbc.query("""
                 select id, campus_id, label, starts_on, ends_on, status from academic_year
                  where campus_id = ? order by starts_on desc
-                """, (rs, i) -> year(rs), campusId);
-            Year selected = yearId != null
+                """, (rs, i) -> AcademicAccess.year(rs), campusId);
+            AcademicAccess.Year selected = yearId != null
                 ? years.stream().filter(y -> y.id().equals(yearId)).findFirst().orElseThrow(ApiException::notFound)
                 : years.stream().filter(y -> "ACTIVE".equals(y.status())).findFirst()
                     .orElse(years.isEmpty() ? null : years.get(0));
@@ -124,7 +121,7 @@ public class AcademicController {
                     rs.getObject(4, LocalDate.class), rs.getObject(5, LocalDate.class), rs.getObject(6, UUID.class)),
                 selId);
 
-            return new StructureView(campusId, campusName, years.stream().map(Year::view).toList(),
+            return new StructureView(campusId, campusName, years.stream().map(AcademicAccess.Year::view).toList(),
                 selected == null ? null : selected.view(), programmes, calendar);
         });
     }
@@ -175,7 +172,7 @@ public class AcademicController {
     @ResponseStatus(HttpStatus.CREATED)
     public GradeView createGrade(RequestContext ctx, @PathVariable UUID programmeId, @Valid @RequestBody GradeRequest req) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            requireManage(jdbc, ctx, "programme", programmeId, programmePath(jdbc, ctx, programmeId));
+            access.requireManage(jdbc, ctx, "programme", programmeId, access.programmePath(jdbc, ctx, programmeId));
             UUID id = jdbc.queryForObject("""
                 insert into grade_level (tenant_id, programme_id, code, name, ordinal) values (?, ?, ?, ?, ?) returning id
                 """, UUID.class, ctx.tenant().value(), programmeId, req.code(), req.name().trim(), req.ordinal());
@@ -190,7 +187,7 @@ public class AcademicController {
     public SubjectView createSubject(RequestContext ctx, @PathVariable UUID programmeId,
                                      @Valid @RequestBody SubjectRequest req) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            requireManage(jdbc, ctx, "programme", programmeId, programmePath(jdbc, ctx, programmeId));
+            access.requireManage(jdbc, ctx, "programme", programmeId, access.programmePath(jdbc, ctx, programmeId));
             UUID id = jdbc.queryForObject("""
                 insert into subject (tenant_id, programme_id, code, name) values (?, ?, ?, ?) returning id
                 """, UUID.class, ctx.tenant().value(), programmeId, req.code(), req.name().trim());
@@ -204,11 +201,11 @@ public class AcademicController {
     @ResponseStatus(HttpStatus.CREATED)
     public TermView createTerm(RequestContext ctx, @PathVariable UUID yearId, @Valid @RequestBody TermRequest req) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            Year year = loadYear(jdbc, ctx, yearId);
-            ScopePath path = programmePath(jdbc, ctx, req.programmeId());
-            requireSameCampus(year, path);
-            requireManage(jdbc, ctx, "academic_term", null, path);
-            TermRules.Term candidate = new TermRules.Term(req.label().trim(), range(req.startsOn(), req.endsOn()));
+            AcademicAccess.Year year = access.loadYear(jdbc, ctx, yearId);
+            ScopePath path = access.programmePath(jdbc, ctx, req.programmeId());
+            AcademicAccess.requireSameCampus(year, path);
+            access.requireManage(jdbc, ctx, "academic_term", null, path);
+            TermRules.Term candidate = new TermRules.Term(req.label().trim(), AcademicAccess.range(req.startsOn(), req.endsOn()));
             List<TermRules.Term> existing = jdbc.query("""
                 select label, starts_on, ends_on from academic_term where academic_year_id = ? and programme_id = ?
                  order by starts_on
@@ -236,12 +233,12 @@ public class AcademicController {
     @ResponseStatus(HttpStatus.CREATED)
     public SectionView createSection(RequestContext ctx, @PathVariable UUID yearId, @Valid @RequestBody SectionRequest req) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            Year year = loadYear(jdbc, ctx, yearId);
+            AcademicAccess.Year year = access.loadYear(jdbc, ctx, yearId);
             UUID programmeId = jdbc.queryForList("select programme_id from grade_level where id = ?", UUID.class,
                 req.gradeId()).stream().findFirst().orElseThrow(ApiException::notFound);
-            ScopePath path = programmePath(jdbc, ctx, programmeId);
-            requireSameCampus(year, path);
-            requireManage(jdbc, ctx, "class_section", null, path);
+            ScopePath path = access.programmePath(jdbc, ctx, programmeId);
+            AcademicAccess.requireSameCampus(year, path);
+            access.requireManage(jdbc, ctx, "class_section", null, path);
             UUID id = jdbc.queryForObject("""
                 insert into class_section (tenant_id, academic_year_id, grade_level_id, code, capacity)
                 values (?, ?, ?, ?, ?) returning id
@@ -257,13 +254,13 @@ public class AcademicController {
     public CalendarEventView createCalendarEvent(RequestContext ctx, @PathVariable UUID yearId,
                                                  @Valid @RequestBody CalendarEventRequest req) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            Year year = loadYear(jdbc, ctx, yearId);
+            AcademicAccess.Year year = access.loadYear(jdbc, ctx, yearId);
             ScopePath path = req.programmeId() == null
                 ? scopes.campusPath(jdbc, ctx.tenant(), year.campusId()).orElseThrow(ApiException::notFound)
-                : programmePath(jdbc, ctx, req.programmeId());
-            requireSameCampus(year, path);
-            requireManage(jdbc, ctx, "calendar_event", null, path);
-            DateRange dates = range(req.startsOn(), req.endsOn());
+                : access.programmePath(jdbc, ctx, req.programmeId());
+            AcademicAccess.requireSameCampus(year, path);
+            access.requireManage(jdbc, ctx, "calendar_event", null, path);
+            DateRange dates = AcademicAccess.range(req.startsOn(), req.endsOn());
             if (!year.dates().contains(dates)) {
                 throw new ApiException(HttpStatus.CONFLICT, "outside_year", "Calendar dates must lie within the academic year ("
                     + year.dates().startsOn() + " to " + year.dates().endsOn() + ").");
@@ -283,72 +280,10 @@ public class AcademicController {
     @PostMapping("/academic-years/{yearId}/rollover-preview")
     public RolloverPlanner.Preview rolloverPreview(RequestContext ctx, @PathVariable UUID yearId) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            Year year = loadYear(jdbc, ctx, yearId);
+            AcademicAccess.Year year = access.loadYear(jdbc, ctx, yearId);
             ScopePath campus = scopes.campusPath(jdbc, ctx.tenant(), year.campusId()).orElseThrow(ApiException::notFound);
-            requireManage(jdbc, ctx, "academic_year", yearId, campus);
-            List<RolloverPlanner.Grade> grades = jdbc.query("""
-                select g.id, g.programme_id, p.code, g.code, g.ordinal
-                  from grade_level g join programme p on p.id = g.programme_id where p.campus_id = ?
-                """, (rs, i) -> new RolloverPlanner.Grade(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class),
-                    rs.getString(3), rs.getString(4), rs.getInt(5)), year.campusId());
-            List<RolloverPlanner.ProgrammeTerm> terms = jdbc.query("""
-                select p.code, t.label, t.starts_on, t.ends_on
-                  from academic_term t join programme p on p.id = t.programme_id where t.academic_year_id = ?
-                """, (rs, i) -> new RolloverPlanner.ProgrammeTerm(rs.getString(1), new TermRules.Term(rs.getString(2),
-                    new DateRange(rs.getObject(3, LocalDate.class), rs.getObject(4, LocalDate.class)))), yearId);
-            List<RolloverPlanner.Section> sections = jdbc.query("""
-                select s.grade_level_id, s.code, s.capacity,
-                       (select count(*) from student_enrollment e where e.class_section_id = s.id and e.status = 'ENROLLED')
-                  from class_section s where s.academic_year_id = ?
-                """, (rs, i) -> new RolloverPlanner.Section(rs.getObject(1, UUID.class), rs.getString(2),
-                    (Integer) rs.getObject(3), rs.getInt(4)), yearId);
-            List<DateRange> others = jdbc.query("""
-                select starts_on, ends_on from academic_year where campus_id = ? and id <> ?
-                """, (rs, i) -> new DateRange(rs.getObject(1, LocalDate.class), rs.getObject(2, LocalDate.class)),
-                year.campusId(), yearId);
-            return RolloverPlanner.preview(new RolloverPlanner.Current(year.label(), year.dates(), grades, terms,
-                sections, others));
+            access.requireManage(jdbc, ctx, "academic_year", yearId, campus);
+            return RolloverPlanner.preview(access.currentForRollover(jdbc, year));
         });
-    }
-
-    // ---- helpers --------------------------------------------------------------------------------
-
-    private ScopePath programmePath(JdbcTemplate jdbc, RequestContext ctx, UUID programmeId) {
-        return scopes.programmePath(jdbc, ctx.tenant(), programmeId).orElseThrow(ApiException::notFound);
-    }
-
-    /** Callers who cannot read the campus get 404 (no probing); readers without the manage permission get 403. */
-    private void requireManage(JdbcTemplate jdbc, RequestContext ctx, String type, UUID id, ScopePath path) {
-        authz.requireOrNotFound(jdbc, ctx, Permission.CAMPUS_READ, Resource.ordinary(type, id, path, null));
-        authz.requireOrForbidden(jdbc, ctx, Permission.ACADEMIC_STRUCTURE_MANAGE, Resource.ordinary(type, id, path, null));
-    }
-
-    private Year loadYear(JdbcTemplate jdbc, RequestContext ctx, UUID yearId) {
-        Year y = jdbc.query("select id, campus_id, label, starts_on, ends_on, status from academic_year where id = ?",
-            (rs, i) -> year(rs), yearId).stream().findFirst().orElseThrow(ApiException::notFound);
-        ScopePath campus = scopes.campusPath(jdbc, ctx.tenant(), y.campusId()).orElseThrow(ApiException::notFound);
-        authz.requireOrNotFound(jdbc, ctx, Permission.CAMPUS_READ, Resource.ordinary("academic_year", yearId, campus, null));
-        return y;
-    }
-
-    private static void requireSameCampus(Year year, ScopePath path) {
-        UUID campus = path.nodeAt(com.schoomano.domain.tenancy.ScopeLevel.CAMPUS).orElseThrow().id();
-        if (!campus.equals(year.campusId())) {
-            throw new ApiException(HttpStatus.CONFLICT, "wrong_campus",
-                "That programme is not offered on this academic year's campus.");
-        }
-    }
-
-    private static Year year(java.sql.ResultSet rs) throws java.sql.SQLException {
-        return new Year(rs.getObject("id", UUID.class), rs.getObject("campus_id", UUID.class), rs.getString("label"),
-            new DateRange(rs.getObject("starts_on", LocalDate.class), rs.getObject("ends_on", LocalDate.class)),
-            rs.getString("status"));
-    }
-
-    private static DateRange range(LocalDate from, LocalDate to) {
-        if (to.isBefore(from)) {
-            throw ApiException.badRequest("invalid_dates", "The end date must be on or after the start date.");
-        }
-        return new DateRange(from, to);
     }
 }

@@ -18,6 +18,14 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDayRange } from '../lib/format';
+import {
+  AddPanel,
+  asApiError,
+  Confirmable,
+  GradeScalePanel,
+  RolloverCommit,
+  YearActions,
+} from './AcademicManage';
 
 const kindText: Record<CalendarEvent['kind'], string> = {
   HOLIDAY: 'Holiday',
@@ -26,9 +34,6 @@ const kindText: Record<CalendarEvent['kind'], string> = {
   WORKING_DAY: 'Working day',
 };
 const kindTone = { HOLIDAY: 'warning', EXAM: 'info', EVENT: 'neutral', WORKING_DAY: 'success' } as const;
-
-const asApiError = (e: unknown) =>
-  e instanceof ApiError ? e : new ApiError(0, 'client_error', 'Something went wrong.', null);
 
 /** Can change structure; the server enforces ACADEMIC_STRUCTURE_MANAGE regardless. */
 export const canManage = (me: Me) =>
@@ -57,7 +62,7 @@ export function AcademicPage({
     <>
       <PageHeader
         title="Academic structure"
-        lead="Grades, sections, subjects, terms and the calendar for each programme. Grade scales are under Settings and rules."
+        lead="Grades, sections, subjects, terms, grade scales and the calendar for each programme."
       />
       {campuses.length === 0 ? (
         <EmptyState title="No campus to show">
@@ -85,7 +90,7 @@ export function AcademicPage({
               )}
             </Field>
           )}
-          {structure.status === 'ready' && structure.data.years.length > 1 && (
+          {structure.status === 'ready' && (structure.data.years.length > 1 || manage) && (
             <Field label="Academic year">
               {(p) => (
                 <select
@@ -96,6 +101,11 @@ export function AcademicPage({
                   {structure.data.years.map((y) => (
                     <option key={y.id} value={y.id}>
                       {y.label}
+                      {y.status === 'ACTIVE'
+                        ? ' (active)'
+                        : y.status === 'PLANNED'
+                          ? ' (planned)'
+                          : ' (closed)'}
                     </option>
                   ))}
                 </select>
@@ -139,9 +149,10 @@ function StructureView({
       <p className="muted">
         {data.campusName} · {data.year.label} · {formatDayRange(data.year.startsOn, data.year.endsOn)}
       </p>
+      {manage && <YearActions year={data.year} onChanged={onChanged} />}
 
       {data.programmes.map((p) => (
-        <ProgrammeSection key={p.id} programme={p} />
+        <ProgrammeSection key={p.id} programme={p} manage={manage} onChanged={onChanged} />
       ))}
 
       <section className="section" aria-labelledby="calendar-h">
@@ -175,15 +186,35 @@ function StructureView({
       {manage && (
         <>
           <AddTermPanel yearId={data.year.id} programmes={data.programmes} onAdded={onChanged} />
-          <RolloverPanel yearId={data.year.id} yearLabel={data.year.label} />
+          <AddPanel data={data} onChanged={onChanged} />
+          <RolloverPanel yearId={data.year.id} yearLabel={data.year.label} onDone={onChanged} />
         </>
       )}
     </>
   );
 }
 
-function ProgrammeSection({ programme: p }: { programme: Programme }) {
+function ProgrammeSection({
+  programme: p,
+  manage,
+  onChanged,
+}: {
+  programme: Programme;
+  manage: boolean;
+  onChanged: () => void;
+}) {
+  const session = useApiSession();
+  const [failure, setFailure] = useState<ApiError | null>(null);
   const headingId = `prog-${p.id}`;
+  const removeTerm = async (t: Term) => {
+    setFailure(null);
+    try {
+      await apiRequest(session, `/api/v1/terms/${t.id}`, { method: 'DELETE' });
+      onChanged();
+    } catch (e) {
+      setFailure(asApiError(e));
+    }
+  };
   return (
     <section className="section panel" aria-labelledby={headingId}>
       <h2 id={headingId} className="section__title">
@@ -192,6 +223,7 @@ function ProgrammeSection({ programme: p }: { programme: Programme }) {
       {p.boardDetail && <p className="muted">{p.boardDetail}</p>}
 
       <h3 className="section__subtitle">Terms</h3>
+      {failure && <ErrorState error={failure} />}
       <DataTable
         caption={`${p.name}: terms`}
         rows={p.terms}
@@ -205,6 +237,23 @@ function ProgrammeSection({ programme: p }: { programme: Programme }) {
             render: (t) => formatDayRange(t.startsOn, t.endsOn),
             sortValue: (t) => t.startsOn,
           },
+          ...(manage
+            ? [
+                {
+                  key: 'actions',
+                  header: 'Actions',
+                  render: (t: Term) => (
+                    <Confirmable
+                      label={`Yes, remove ${t.label}`}
+                      ariaLabel={`Remove ${t.label}`}
+                      onConfirm={() => void removeTerm(t)}
+                    >
+                      Remove
+                    </Confirmable>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
 
@@ -238,6 +287,7 @@ function ProgrammeSection({ programme: p }: { programme: Programme }) {
               .map((s) => s.name)
               .join(', ')}
       </p>
+      {manage && <GradeScalePanel programme={p} />}
     </section>
   );
 }
@@ -333,7 +383,15 @@ function AddTermPanel({
   );
 }
 
-function RolloverPanel({ yearId, yearLabel }: { yearId: string; yearLabel: string }) {
+function RolloverPanel({
+  yearId,
+  yearLabel,
+  onDone,
+}: {
+  yearId: string;
+  yearLabel: string;
+  onDone: () => void;
+}) {
   const session = useApiSession();
   const [preview, setPreview] = useState<RolloverPreview | null>(null);
   const [failure, setFailure] = useState<ApiError | null>(null);
@@ -388,6 +446,9 @@ function RolloverPanel({ yearId, yearLabel }: { yearId: string; yearLabel: strin
               { key: 'n', header: 'Students', render: (p) => p.students, numeric: true },
             ]}
           />
+          {!preview.warnings.some((w) => w.includes('overlaps')) && (
+            <RolloverCommit yearId={yearId} label={preview.label} onDone={onDone} />
+          )}
         </div>
       )}
     </section>

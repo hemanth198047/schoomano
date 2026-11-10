@@ -11,3 +11,4 @@
 | V1 | Tenancy hierarchy, person/identity, role grants, households, guardian relationships, enrollments, break-glass and support grants, effective-dated config, hash-chained audit, outbox, idempotency |
 | V2 | RLS on all tenant tables, app-role grants, `auth_resolve_identity()`, `config_publish()` |
 | V3 | B1 academic structure: `grade_level`, `subject` (per programme); `academic_term` (per programme and year, no overlap, inside the year), `class_section`, `calendar_event` (per year); `student_enrollment.class_section_id`; `academic_consistency()` trigger (dates inside the year, programme on the year's campus); RLS and grants. Seed: `db/seed/dev_seed_academic.sql` (separately guarded, so existing local databases pick it up) |
+| V4 | Year lifecycle and rollover: one ACTIVE year per campus (partial unique index); `academic_year.rolled_from` (a year rolls over once); `student_enrollment.promoted_from` |

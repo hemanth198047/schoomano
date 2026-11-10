@@ -81,6 +81,41 @@ let calls: ReturnType<typeof stubFetch>;
 beforeEach(() => {
   calls = stubFetch((url, init) => {
     if (url.endsWith('/academic-structure')) return { body: structure };
+    if (url.includes('/config/assessment.grade_scale?programmeId='))
+      return {
+        body: {
+          key: 'assessment.grade_scale',
+          value: {
+            bands: [
+              { grade: 'E', minPercent: 0 },
+              { grade: 'A1', minPercent: 91 },
+            ],
+          },
+          version: 1,
+          definedAtLevel: 'PROGRAMME',
+          definedAtId: 'cbse',
+          inherited: false,
+          asOf: '2026-11-10T00:00:00Z',
+        },
+      };
+    if (url.endsWith('/calendar-events') && init.method === 'POST')
+      return { status: 201, body: { id: 'c9' } };
+    if (url.endsWith('/terms/t1') && init.method === 'DELETE') return { status: 204 };
+    if (url.endsWith('/rollover') && init.method === 'POST')
+      return {
+        status: 201,
+        body: {
+          yearId: 'y2',
+          label: '2027-28',
+          startsOn: '2027-04-01',
+          endsOn: '2028-03-31',
+          termsCreated: 1,
+          sectionsCreated: 2,
+          studentsPlaced: 1,
+          studentsUnplaced: 0,
+          studentsCompleted: 0,
+        },
+      };
     if (url.endsWith('/terms') && init.method === 'POST')
       return {
         status: 409,
@@ -121,10 +156,11 @@ describe('AcademicPage', () => {
 
   it('shows the server reasons when a term is rejected', async () => {
     renderWithApp(<AcademicPage me={admin} campuses={campuses} selectedCampusId={null} />);
-    await userEvent.type(await screen.findByLabelText(/Term name/), 'Mid term');
-    await userEvent.type(screen.getByLabelText(/First day/), '2026-09-01');
-    await userEvent.type(screen.getByLabelText(/Last day/), '2026-10-15');
-    await userEvent.click(screen.getByRole('button', { name: 'Add term' }));
+    const form = within(await screen.findByRole('region', { name: 'Add a term' }));
+    await userEvent.type(form.getByLabelText(/Term name/), 'Mid term');
+    await userEvent.type(form.getByLabelText(/First day/), '2026-09-01');
+    await userEvent.type(form.getByLabelText(/Last day/), '2026-10-15');
+    await userEvent.click(form.getByRole('button', { name: 'Add term' }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Check the term dates.');
     expect(alert).toHaveTextContent('Overlaps Term 1');
@@ -155,6 +191,40 @@ describe('AcademicPage', () => {
       expect(within(region).getByRole('table', { name: 'Students moving up' })).toHaveTextContent('G5G61'),
     );
     expect(region).toHaveTextContent('complete the programme');
+  });
+
+  it('adds a campus-wide holiday', async () => {
+    renderWithApp(<AcademicPage me={admin} campuses={campuses} selectedCampusId={null} />);
+    const form = within(await screen.findByRole('region', { name: 'Add to the structure' }));
+    await userEvent.type(form.getByLabelText(/Title/), 'Pongal');
+    await userEvent.type(form.getByLabelText(/First day/), '2027-01-14');
+    await userEvent.type(form.getByLabelText(/Last day/), '2027-01-15');
+    await userEvent.click(form.getByRole('button', { name: 'Add' }));
+    expect(await form.findByRole('status')).toHaveTextContent('Added Pongal');
+    const body = JSON.parse(String(calls.find((c) => c.url.endsWith('/calendar-events'))!.init.body));
+    expect(body).toEqual({ kind: 'HOLIDAY', title: 'Pongal', startsOn: '2027-01-14', endsOn: '2027-01-15' });
+  });
+
+  it('removes a term only after confirmation', async () => {
+    renderWithApp(<AcademicPage me={admin} campuses={campuses} selectedCampusId={null} />);
+    await screen.findByRole('table', { name: /terms/ });
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Term 1' }));
+    expect(calls.some((c) => c.init.method === 'DELETE')).toBe(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, remove Term 1' }));
+    await waitFor(() => expect(calls.some((c) => c.init.method === 'DELETE')).toBe(true));
+  });
+
+  it('commits the rollover after preview and confirmation', async () => {
+    renderWithApp(<AcademicPage me={admin} campuses={campuses} selectedCampusId={null} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Preview next year' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Create 2027-28' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, create 2027-28' }));
+    expect(await screen.findByText(/1 students placed/)).toBeInTheDocument();
+  });
+
+  it('shows the current grade scale to administrators', async () => {
+    renderWithApp(<AcademicPage me={admin} campuses={campuses} selectedCampusId={null} />);
+    expect(await screen.findByText('A1 from 91% · E from 0%')).toBeInTheDocument();
   });
 
   it('tells people without a campus role what they need', () => {

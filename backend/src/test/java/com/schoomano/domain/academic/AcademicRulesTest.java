@@ -130,6 +130,20 @@ class AcademicRulesTest {
         }
 
         @Test
+        void promotedStudentsKeepTheirSectionLetterWhenItExists() {
+            assertEquals("B", RolloverPlanner.placeIn(List.of("A", "B"), "B").orElseThrow());
+            assertEquals("A", RolloverPlanner.placeIn(List.of("C", "A"), "B").orElseThrow());
+            assertTrue(RolloverPlanner.placeIn(List.of(), "A").isEmpty());
+        }
+
+        @Test
+        void nextGradeStaysWithinTheProgramme() {
+            var other = new Grade(UUID.randomUUID(), UUID.randomUUID(), "STATE", "G12", 12);
+            assertEquals(g12, RolloverPlanner.nextGrade(List.of(g11, g12, other), g11).orElseThrow());
+            assertTrue(RolloverPlanner.nextGrade(List.of(g11, g12, other), g12).isEmpty());
+        }
+
+        @Test
         void leapDayEndShiftsToTheLastDayOfFebruary() {
             var leap = new Current("2027-28", r("2027-03-01", "2028-02-29"), List.of(), List.of(), List.of(), List.of());
             assertEquals(LocalDate.parse("2029-02-28"), RolloverPlanner.preview(leap).dates().endsOn());

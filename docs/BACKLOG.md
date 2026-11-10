@@ -6,7 +6,7 @@ Each slice ships database → API → web (and mobile where stated) → tests �
 Tenancy + RLS, identity/roles/relationships model, authorization policy, effective-dated config and flags, audit + outbox + idempotency tables, admin web shell and design system, separated frontend/backend, container images, start/stop scripts for Unix-like systems and Windows, CI.
 
 ## Stage A.1: First green build (in progress)
-**Done 2026-11-10:** `mvn verify` green (needed Testcontainers 1.21.4 for Docker Engine 29); `--dev` stack verified end to end on Linux. **Left:** container image build (blocked here only by Docker Hub rate limiting), Spring Boot 4 upgrade, CI on GitHub, Windows and macOS runs.
+**Done 2026-11-10:** `mvn verify` green (needed Testcontainers 1.21.4 for Docker Engine 29); `--dev` stack verified end to end on Linux. CI run #2 on `main`: all 6 jobs green, both images build. **Left:** Spring Boot 4 upgrade, Windows and macOS runs.
 
 - `scripts/start` brings the full stack up on a developer machine (this is also the first real compile of the Spring layer), and `cd backend && mvn verify` passes including `StageAApiIT`. Fix whatever surfaces.
 - Upgrade Spring Boot 3.5.6 → 4.0.x (ADR 0001) and re-run.
@@ -17,7 +17,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 
 | Slice | Modules | Depends on | Acceptance (measurable) |
 |---|---|---|---|
-| **B1** Academic structure *(first increment done 2026-11-10; left: edit/retire, year creation, rollover commit, remaining web forms, grade-scale editor)* | M04 | A.1 | Per programme (CBSE, State): grades, sections, subjects, terms; campus calendar with holidays; grade scales as effective-dated config per programme; year-rollover preview writes nothing; overlapping terms rejected; all changes audited |
+| **B1** Academic structure *(done 2026-11-10)* | M04 | A.1 | Per programme (CBSE, State): grades, sections, subjects, terms; campus calendar with holidays; grade scales as effective-dated config per programme; year-rollover preview writes nothing; overlapping terms rejected; all changes audited |
 | **B2** Repeatable import (coexistence) | M29, M27 | B1 | Upload CSV/Excel export → row-level validation report → dry-run with counts → commit. Re-importing the same file changes nothing; a changed file applies only the differences; conflicts with Schoomano-side edits are listed, never silently overwritten; a batch can be rolled back. Fields owned by the old system are read-only in the UI during coexistence. 5,000 students import in < 60 s |
 | **B3** Students and guardians | M03, M01 | B1, B2 | Student profile with stable school ref; households; guardian relationships with capabilities, editable by authorised staff with reason, audited; separated-guardian restriction enforced end to end; guardian mobile numbers verified format (+91) and unique per guardian |
 | **B4** Sign-in | M01 | B3 | **Parents:** phone OTP (ADR 0009): 6 digits, 5-minute expiry, hashed at rest, 5 attempts then lock, resend after 30 s, per-number and per-IP limits, identical response whether or not the number is known; works on a throttled 2G profile. **Staff:** OIDC with TOTP MFA for admin/finance roles. Session revocation from the admin UI |

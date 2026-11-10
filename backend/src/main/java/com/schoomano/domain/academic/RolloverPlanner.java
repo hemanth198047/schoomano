@@ -74,9 +74,7 @@ public final class RolloverPlanner {
             if (students == 0) {
                 continue;
             }
-            Grade to = current.grades().stream()
-                .filter(o -> o.programmeId().equals(g.programmeId()) && o.ordinal() > g.ordinal())
-                .min(Comparator.comparingInt(Grade::ordinal)).orElse(null);
+            Grade to = nextGrade(current.grades(), g).orElse(null);
             promotions.add(new Promotion(g.programmeCode(), g.code(), to == null ? null : to.code(), students));
             if (to == null) {
                 warnings.add(students + " student(s) in " + g.programmeCode() + " " + g.code()
@@ -84,6 +82,24 @@ public final class RolloverPlanner {
             }
         }
         return new Preview(label, next, terms, sections, List.copyOf(promotions), List.copyOf(warnings));
+    }
+
+    /** The next grade of the same programme by ordinal; empty for the programme's final grade. */
+    public static java.util.Optional<Grade> nextGrade(Collection<Grade> grades, Grade from) {
+        return grades.stream()
+            .filter(o -> o.programmeId().equals(from.programmeId()) && o.ordinal() > from.ordinal())
+            .min(Comparator.comparingInt(Grade::ordinal));
+    }
+
+    /**
+     * Section a promoted student joins: the same section code in the next grade (A stays A) when it exists,
+     * otherwise the alphabetically first section of that grade, otherwise none (placed by the office later).
+     */
+    public static java.util.Optional<String> placeIn(Collection<String> nextGradeSectionCodes, String currentCode) {
+        if (nextGradeSectionCodes.contains(currentCode)) {
+            return java.util.Optional.of(currentCode);
+        }
+        return nextGradeSectionCodes.stream().sorted().findFirst();
     }
 
     /** "2026-27" → "2027-28"; any other label gets " (next)" so the admin renames it explicitly. */

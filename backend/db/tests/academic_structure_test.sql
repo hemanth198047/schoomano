@@ -110,4 +110,33 @@ do $$ begin
   raise notice 'A8 pass: grade scales are effective-dated config per programme';
 end $$;
 
+-- A9: at most one ACTIVE year per campus.
+do $$ begin
+  perform set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+  begin
+    insert into academic_year (tenant_id, campus_id, label, starts_on, ends_on, status)
+    values ('10000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000001',
+            'Second active', '2030-04-01', '2031-03-31', 'ACTIVE');
+    raise exception 'A9 failed: second active year accepted';
+  exception when unique_violation then
+    raise notice 'A9 pass: one active year per campus';
+  end;
+end $$;
+
+-- A10: a year can be the source of only one rollover.
+do $$ begin
+  perform set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+  insert into academic_year (tenant_id, campus_id, label, starts_on, ends_on, rolled_from)
+  values ('10000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000001',
+          'Roll A', '2031-04-01', '2032-03-31', '15000000-0000-4000-8000-000000000001');
+  begin
+    insert into academic_year (tenant_id, campus_id, label, starts_on, ends_on, rolled_from)
+    values ('10000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000001',
+            'Roll B', '2032-04-01', '2033-03-31', '15000000-0000-4000-8000-000000000001');
+    raise exception 'A10 failed: second rollover of one year accepted';
+  exception when unique_violation then
+    raise notice 'A10 pass: a year rolls over once';
+  end;
+end $$;
+
 rollback;
