@@ -72,6 +72,11 @@ abstract class ApiITSupport {
         }
     }
 
+    /** Simulates an edit made elsewhere (e.g. by the office in the UI) as the schema owner. */
+    static void ownerUpdate(String sql) throws Exception {
+        ownerSql(sql);
+    }
+
     private static void ownerSql(String sql) throws Exception {
         try (var c = DriverManager.getConnection(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword());
              var s = c.createStatement()) {

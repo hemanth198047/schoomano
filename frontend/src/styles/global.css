@@ -348,6 +348,13 @@ code {
   max-width: 34rem;
 }
 
+.count-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-end: var(--space-4);
+}
+
 .form--inline {
   display: flex;
   flex-wrap: wrap;

@@ -7,6 +7,7 @@ import { PageHeader } from './components/PageHeader';
 import { ErrorState, LoadingState } from './components/States';
 import { AcademicPage } from './pages/AcademicPage';
 import { CampusesPage } from './pages/CampusesPage';
+import { ImportsPage } from './pages/ImportsPage';
 import { DesignSystemPage } from './pages/DesignSystemPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SignInPage } from './pages/SignInPage';
@@ -52,6 +53,16 @@ function SignedIn() {
           path="/academic"
           element={
             <AcademicPage
+              me={me.data}
+              campuses={campuses.status === 'ready' ? campuses.data : []}
+              selectedCampusId={selectedCampusId}
+            />
+          }
+        />
+        <Route
+          path="/imports"
+          element={
+            <ImportsPage
               me={me.data}
               campuses={campuses.status === 'ready' ? campuses.data : []}
               selectedCampusId={selectedCampusId}

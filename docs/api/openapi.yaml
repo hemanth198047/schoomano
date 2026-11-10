@@ -522,6 +522,124 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/academic-years/{yearId}/imports/students:
+    post:
+      summary: "Check (dry run) an export of students from the old system: .csv or .xlsx, up to 5 MB and 20,000 rows. Nothing changes until commit. Requires IMPORT_MANAGE. Audited."
+      operationId: validateStudentImport
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Checked; the plan per row (errors and conflicts first, at most 200 rows)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatch' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/imports:
+    get:
+      summary: Recent imports for the year (newest first, at most 50, without rows)
+      operationId: listImports
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ImportBatch' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/imports/{id}:
+    get:
+      summary: One import with a page of its rows
+      operationId: getImport
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - { name: action, in: query, schema: { type: string, enum: [CREATE, UPDATE, UNCHANGED, CONFLICT, ERROR] } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 0, maximum: 1000, default: 200 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatch' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/imports/{id}/commit:
+    post:
+      summary: "Apply exactly what the dry run showed. Refused with `stale_preview` if student records changed since the check. Rows with errors or conflicts are skipped. Audited, emits outbox event."
+      operationId: commitImport
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batch: { $ref: '#/components/schemas/ImportBatch' }
+                  created: { type: integer }
+                  updated: { type: integer }
+                  unchanged: { type: integer }
+                  skipped: { type: integer }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/imports/{id}/discard:
+    post:
+      summary: Discard a checked import without applying it. Audited.
+      operationId: discardImport
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Discarded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatch' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/imports/{id}/rollback:
+    post:
+      summary: "Revert the latest committed import (`not_latest` otherwise). Values edited after the import are kept and listed. Audited."
+      operationId: rollbackImport
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Rolled back
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  batch: { $ref: '#/components/schemas/ImportBatch' }
+                  removed: { type: integer }
+                  restored: { type: integer }
+                  linksRestored: { type: integer }
+                  kept: { type: array, items: { type: string } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
@@ -584,7 +702,7 @@ components:
         detail: { type: string }
         code:
           type: string
-          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year]
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large]
         correlationId: { type: string }
         problems:
           type: array
@@ -816,6 +934,43 @@ components:
         studentsPlaced: { type: integer }
         studentsUnplaced: { type: integer, description: "Carried forward without a section: no section in the next grade, or none before" }
         studentsCompleted: { type: integer, description: "Final-grade students, not carried into the new year" }
+
+    ImportBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        entity: { type: string, enum: [STUDENT] }
+        fileName: { type: string }
+        status: { type: string, enum: [VALIDATED, COMMITTED, ROLLED_BACK, DISCARDED] }
+        academicYearId: { type: string, format: uuid }
+        yearLabel: { type: string }
+        counts:
+          type: object
+          description: Rows per result, plus MISSING (previously imported students absent from this file; never deleted)
+          additionalProperties: { type: integer }
+        fileProblems: { type: array, items: { type: string } }
+        missingFromFile: { type: array, items: { type: string }, description: First 100 references }
+        createdAt: { type: string, format: date-time }
+        committedAt: { type: string, format: date-time }
+        rolledBackAt: { type: string, format: date-time }
+        rowsTotal: { type: integer }
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              rowNo: { type: integer, description: Spreadsheet row number (header is row 1) }
+              externalRef: { type: string, description: Admission number in the old system }
+              action: { type: string, enum: [CREATE, UPDATE, UNCHANGED, CONFLICT, ERROR] }
+              problems: { type: array, items: { type: string } }
+              changes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    field: { type: string, enum: [givenName, familyName, dateOfBirth, placement] }
+                    before: { type: string }
+                    after: { type: string }
 
     DateRange:
       type: object

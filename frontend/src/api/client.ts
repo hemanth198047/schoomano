@@ -44,7 +44,7 @@ export function newCorrelationId(): string {
 export async function apiRequest<T>(
   session: ApiSession,
   path: string,
-  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+  init: { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -52,14 +52,15 @@ export async function apiRequest<T>(
     'X-Correlation-Id': newCorrelationId(),
   };
   if (session.tenantSlug) headers['X-Schoomano-Tenant'] = session.tenantSlug;
-  if (init.body !== undefined) headers['Content-Type'] = 'application/json';
+  // A FormData body (file upload) sets its own multipart Content-Type with the boundary.
+  if (init.body !== undefined && init.form === undefined) headers['Content-Type'] = 'application/json';
 
   let res: Response;
   try {
     res = await fetch(`${session.baseUrl}${path}`, {
       method: init.method ?? 'GET',
       headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
       signal: init.signal,
     });
   } catch (e) {

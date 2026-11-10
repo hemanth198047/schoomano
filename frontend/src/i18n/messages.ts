@@ -7,6 +7,7 @@ export const en = {
   'nav.today': 'Today',
   'nav.campuses': 'Campuses',
   'nav.academic': 'Academic structure',
+  'nav.imports': 'Imports',
   'nav.configuration': 'Settings and rules',
   'nav.designSystem': 'Design system',
   'nav.main': 'Main',

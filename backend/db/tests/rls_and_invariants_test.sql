@@ -180,5 +180,21 @@ do $$ begin
   raise notice 'T12 pass: audit trail is tenant-isolated';
 end $$;
 
+-- T13: import tables (B2) fail closed and are tenant-isolated; a link cannot point at another tenant's person.
+do $$ begin
+  perform set_config('app.tenant_id', '', true);
+  if (select count(*) from import_batch) + (select count(*) from import_row) + (select count(*) from external_link) <> 0 then
+    raise exception 'T13 failed: import rows visible without tenant context'; end if;
+  perform set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+  begin
+    insert into external_link (tenant_id, source, entity, external_ref, person_id, last_values)
+    values ('10000000-0000-4000-8000-000000000001', 'LEGACY', 'STUDENT', 'X-1',
+            '23000000-0000-4000-8000-000000000001', '{}');
+    raise exception 'T13 failed: link to another tenant''s person accepted';
+  exception when foreign_key_violation then
+    raise notice 'T13 pass: import tables isolated; links stay inside the tenant';
+  end;
+end $$;
+
 rollback;  -- leave the seeded database unchanged
 \echo 'ALL DATABASE INVARIANT TESTS PASSED'

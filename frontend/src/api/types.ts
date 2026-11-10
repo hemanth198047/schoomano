@@ -146,3 +146,46 @@ export interface RolloverResult {
   studentsUnplaced: number;
   studentsCompleted: number;
 }
+
+export type ImportAction = 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'CONFLICT' | 'ERROR';
+
+export interface ImportRow {
+  rowNo: number;
+  externalRef: string;
+  action: ImportAction;
+  problems: string[];
+  changes: { field: string; before: string; after: string }[];
+}
+
+export interface ImportBatch {
+  id: string;
+  entity: 'STUDENT';
+  fileName: string;
+  status: 'VALIDATED' | 'COMMITTED' | 'ROLLED_BACK' | 'DISCARDED';
+  academicYearId: string;
+  yearLabel: string;
+  counts: Record<ImportAction | 'MISSING', number>;
+  fileProblems: string[];
+  missingFromFile: string[];
+  createdAt: string;
+  committedAt?: string;
+  rolledBackAt?: string;
+  rowsTotal: number;
+  rows: ImportRow[];
+}
+
+export interface ImportCommitResult {
+  batch: ImportBatch;
+  created: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+}
+
+export interface ImportRollbackResult {
+  batch: ImportBatch;
+  removed: number;
+  restored: number;
+  linksRestored: number;
+  kept: string[];
+}

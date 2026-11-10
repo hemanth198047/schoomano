@@ -9,6 +9,8 @@ public enum Permission {
     CAMPUS_MANAGE(true),
     /** Grades, subjects, terms, sections, calendar, rollover (M04). */
     ACADEMIC_STRUCTURE_MANAGE(true),
+    /** Validate, commit and roll back imports from the old school system (M29). */
+    IMPORT_MANAGE(true),
     PERSON_MANAGE(true),
     ROLE_GRANT_MANAGE(true),
     STUDENT_READ_BASIC(false),

@@ -1,6 +1,6 @@
 # Implementation status
 
-Living document, updated at the end of every slice. Last update: **2026-11-10, Stage A.1 (CI green) + B1 academic structure complete**.
+Living document, updated at the end of every slice. Last update: **2026-11-10, Stage A.1 (CI green) + B1 academic structure + B2 repeatable import**.
 
 Status values: **Not started**, **In progress**, **Implemented** (code complete, tests written), **Verified** (tests executed and passing, evidence linked), **Deferred** (deliberately postponed, reason given).
 
@@ -27,6 +27,9 @@ Nothing below claims production readiness. No module has been used by a real sch
 | Academic structure, rules (B1) | **Verified** | `com.schoomano.domain.academic`: `TermRules`, `GradeScale`, `RolloverPlanner` with 13 unit tests (overlap messages, inclusive grade boundaries, promotion within a programme, final grade completes, leap day, century label) |
 | Academic structure, API (B1) | **Verified** | `AcademicController`, `AcademicYearController` + config at PROGRAMME scope. `AcademicLifecycleApiIT` 4/4: years created PLANNED and never overlapping; terms moved/removed but never into an overlap; sections in use cannot be removed; subjects retired, not deleted; rollover commit creates next year once, promotes Vivaan G3 A → G4 A, leaves the source year untouched, emits one outbox event; activating closes the previous year. `AcademicStructureApiIT` 8/8: per-programme read, teacher read-only (403 on writes), guardian and other tenant get 404, overlap rejected with reasons, wrong-campus programme rejected, each write audited (exactly one event each), rollover preview writes no academic rows, grade scale validated and effective-dated per programme |
 | Academic structure, web (B1) | **Verified** | `/academic` page: terms (add, remove with confirmation), sections with occupancy, subjects, calendar; add grades, subjects, sections, calendar entries and years; make a planned year active; grade-scale view and scheduling per programme; rollover preview then confirmed commit. 10 page tests incl. axe + 3 grade-scale parsing tests. Full flow checked in a browser against the running stack. Checked in a browser at 1366 px and 390 px against the running stack |
+| Repeatable import, rules (B2) | **Verified** | `com.schoomano.domain.imports`: RFC 4180 CSV parser and `StudentImport` three-way planner, 13 unit tests (header aliases, Indian and Excel-serial dates, duplicates, unlinked collisions, old-system change applied, Schoomano edit kept, both changed = conflict with nothing applied, missing students listed not deleted). `.xlsx` reader without new dependencies, hardened against XXE and zip bombs (4 tests) |
+| Repeatable import, API (B2) | **Verified** | V5 tables with RLS (DB test T13). `ImportApiIT` 4/4: dry run writes no student; commit applies exactly the dry run; same file again = all unchanged; three-way conflicts never overwritten; commit refused with `stale_preview` if records changed after the check; only the latest batch rolls back and reverts the change; teachers 403, guardians and other tenants 404. **5,000 students validate + commit in 2.3 s** (target < 60 s); repeat checks stay fast right after a large first import (a plan regression from stale statistics was found and designed out) |
+| Repeatable import, web (B2) | **Verified** | `/imports` page: upload .csv/.xlsx, dry-run report with errors and conflicts first, import, discard, history, rollback of the latest import with a list of what was kept. 6 tests incl. axe (one duplicate-landmark finding fixed). Checked end to end in a browser: import, re-import ("Nothing to import"), rollback |
 | CI pipeline (6 jobs) | **Verified** | Run #2 on `main` (2026-11-10): all 6 jobs green, including both container image builds and the gitleaks scan |
 | API contract | **Verified** (lint) | `docs/api/openapi.yaml` valid per Redocly CLI |
 
@@ -60,9 +63,9 @@ Nothing below claims production readiness. No module has been used by a real sch
 | M24 Compliance and evidence | P1 | Not started | Needs legal inputs (D7) |
 | M25 Analytics and decisions | P1 | Not started | |
 | M26 Workflow and automation studio | P1 | Not started | Config versioning pattern is the intended basis |
-| M27 Integration and data exchange | P0 | **In progress** | Contract-first REST + problem details + correlation ids + outbox table. Missing: webhooks, API keys, idempotency filter, import pipeline (B2) |
+| M27 Integration and data exchange | P0 | **In progress** | Contract-first REST + problem details + correlation ids + outbox table + student import pipeline (B2). Missing: webhooks, API keys, idempotency filter (B6) |
 | M28 AI assistance optional | P2 | Deferred | `flag.ai.enabled` = false by default; workflows must work without AI |
-| M29 Migration and onboarding | P0 | Not started | B2: repeatable CSV imports for one term of coexistence (diff, conflicts, rollback) |
+| M29 Migration and onboarding | P0 | **In progress** | B2 done for students: repeatable .csv/.xlsx import with dry run, three-way diff, conflicts listed, stale-check commit, rollback. Missing: guardians and relationships in the import (after B3), read-only display of old-system-owned fields (B3 student profile; ownership is recorded in `person.provenance.ownedFields`) |
 | M30 Support, audit and operations | P0 | **In progress** | Audit log, support-session policy, correlation ids, health endpoints. Missing: support console, tenant-approved support grant UI, metrics dashboards, backups/restore drill |
 
 ## Known limitations
@@ -75,4 +78,5 @@ Nothing below claims production readiness. No module has been used by a real sch
 6. No mobile app yet (ADR 0005 is Proposed).
 7. `config_version.value` is checked server-side only for known keys (`attendance.late_after_minutes`, `assessment.grade_scale`, `flag.*`); other keys accept any JSON.
 8. B1 web offers add/remove for terms and add for the rest; renaming grades, retiring subjects and changing section capacity exist in the API but not yet as web controls. Rollover never edits the source year, so final-grade students stay ENROLLED there until the year is closed.
-9. Fixed in this update: wide tables made the whole page scroll sideways on phones (grid column blowout); the dev backend now runs a copy of the jar from `.run/`, so `mvn verify` can no longer replace the jar under a running JVM (seen here as a hung API).
+9. Import file contents are kept in `import_batch.file_table` to re-check plans at commit (retention class TRANSIENT; a purge job is not built yet).
+10. Fixed earlier: wide tables made the whole page scroll sideways on phones (grid column blowout); the dev backend now runs a copy of the jar from `.run/`, so `mvn verify` can no longer replace the jar under a running JVM (seen here as a hung API).
