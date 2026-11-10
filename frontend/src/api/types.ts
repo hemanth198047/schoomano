@@ -41,7 +41,7 @@ export interface ResolvedConfig {
 
 export interface ConfigVersion {
   id: string;
-  scopeLevel: 'GROUP' | 'CAMPUS';
+  scopeLevel: 'GROUP' | 'CAMPUS' | 'PROGRAMME';
   scopeId: string;
   version: number;
   value: unknown;
@@ -58,4 +58,79 @@ export interface PreviewRow {
   before: unknown;
   after: unknown;
   changed: boolean;
+  programmeId?: string | null;
+  programmeName?: string | null;
+}
+
+export interface AcademicYear {
+  id: string;
+  label: string;
+  startsOn: string;
+  endsOn: string;
+  status: 'PLANNED' | 'ACTIVE' | 'CLOSED';
+}
+
+export interface Section {
+  id: string;
+  code: string;
+  capacity: number | null;
+  students: number;
+}
+
+export interface Grade {
+  id: string;
+  code: string;
+  name: string;
+  ordinal: number;
+  sections: Section[];
+}
+
+export interface Term {
+  id: string;
+  label: string;
+  startsOn: string;
+  endsOn: string;
+}
+
+export interface Programme {
+  id: string;
+  code: string;
+  name: string;
+  board: 'CBSE' | 'CISCE' | 'IB' | 'CAMBRIDGE' | 'STATE' | 'OTHER';
+  boardDetail: string | null;
+  grades: Grade[];
+  subjects: { id: string; code: string; name: string; status: 'ACTIVE' | 'RETIRED' }[];
+  terms: Term[];
+}
+
+export interface CalendarEvent {
+  id: string;
+  kind: 'HOLIDAY' | 'EXAM' | 'EVENT' | 'WORKING_DAY';
+  title: string;
+  startsOn: string;
+  endsOn: string;
+  programmeId: string | null;
+}
+
+export interface AcademicStructure {
+  campusId: string;
+  campusName: string;
+  years: AcademicYear[];
+  year: AcademicYear | null;
+  programmes: Programme[];
+  calendar: CalendarEvent[];
+}
+
+export interface DateRange {
+  startsOn: string;
+  endsOn: string;
+}
+
+export interface RolloverPreview {
+  label: string;
+  dates: DateRange;
+  terms: { programmeCode: string; label: string; dates: DateRange }[];
+  sections: { programmeCode: string; gradeCode: string; sectionCode: string; capacity: number | null }[];
+  promotions: { programmeCode: string; fromGrade: string; toGrade: string | null; students: number }[];
+  warnings: string[];
 }

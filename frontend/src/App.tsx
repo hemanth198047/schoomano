@@ -5,6 +5,7 @@ import { useApiResource } from './app/useApiResource';
 import { AppShell } from './components/AppShell';
 import { PageHeader } from './components/PageHeader';
 import { ErrorState, LoadingState } from './components/States';
+import { AcademicPage } from './pages/AcademicPage';
 import { CampusesPage } from './pages/CampusesPage';
 import { DesignSystemPage } from './pages/DesignSystemPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -47,6 +48,16 @@ function SignedIn() {
       <Routes>
         <Route path="/" element={<TodayPage me={me.data} />} />
         <Route path="/campuses" element={<CampusesPage />} />
+        <Route
+          path="/academic"
+          element={
+            <AcademicPage
+              me={me.data}
+              campuses={campuses.status === 'ready' ? campuses.data : []}
+              selectedCampusId={selectedCampusId}
+            />
+          }
+        />
         <Route path="/settings" element={<SettingsPage me={me.data} />} />
         <Route path="/design-system" element={<DesignSystemPage />} />
         <Route

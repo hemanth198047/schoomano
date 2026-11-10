@@ -9,6 +9,8 @@ export class ApiError extends Error {
   readonly detail: string;
   readonly correlationId: string | null;
   readonly fields: { field: string; message: string }[];
+  /** User-readable reasons the server gave, e.g. which term a new term overlaps. */
+  readonly problems: string[];
 
   constructor(
     status: number,
@@ -16,6 +18,7 @@ export class ApiError extends Error {
     detail: string,
     correlationId: string | null,
     fields: { field: string; message: string }[] = [],
+    problems: string[] = [],
   ) {
     super(detail);
     this.name = 'ApiError';
@@ -24,6 +27,7 @@ export class ApiError extends Error {
     this.detail = detail;
     this.correlationId = correlationId;
     this.fields = fields;
+    this.problems = problems;
   }
 }
 
@@ -72,7 +76,13 @@ export async function apiRequest<T>(
   if (res.ok) {
     return (res.status === 204 ? undefined : await res.json()) as T;
   }
-  let problem: { code?: string; detail?: string; correlationId?: string; fields?: ApiError['fields'] } = {};
+  let problem: {
+    code?: string;
+    detail?: string;
+    correlationId?: string;
+    fields?: ApiError['fields'];
+    problems?: string[];
+  } = {};
   try {
     problem = await res.json();
   } catch {
@@ -84,5 +94,6 @@ export async function apiRequest<T>(
     problem.detail ?? `Request failed with status ${res.status}.`,
     problem.correlationId ?? correlationId,
     problem.fields ?? [],
+    problem.problems ?? [],
   );
 }

@@ -16,6 +16,11 @@ const friendly: Record<string, string> = {
   unauthenticated: 'Your session has ended.',
   forbidden: 'You do not have access to this.',
   not_found: 'This record does not exist or you cannot access it.',
+  conflict: 'This change conflicts with existing data.',
+  invalid_value: 'This value is not valid.',
+  term_rejected: 'Check the term dates.',
+  wrong_campus: 'That programme belongs to another campus.',
+  outside_year: 'Those dates fall outside the academic year.',
 };
 
 export function ErrorState({ error, onRetry }: { error: ApiError; onRetry?: () => void }) {
@@ -23,6 +28,13 @@ export function ErrorState({ error, onRetry }: { error: ApiError; onRetry?: () =
     <div className="state state--error" role="alert">
       <p className="state__title">{friendly[error.code] ?? 'This could not be loaded.'}</p>
       <p className="state__body">{error.detail}</p>
+      {error.problems.length > 0 && (
+        <ul className="state__problems">
+          {error.problems.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+      )}
       {error.correlationId && (
         <p className="state__meta">
           Reference for support: <code>{error.correlationId}</code>

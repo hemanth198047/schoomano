@@ -73,6 +73,9 @@ try {
                     Invoke-Native mvn @('-B', '-q', '-f', 'backend/pom.xml', '-DskipTests', 'package')
                     if ($script:NativeExit -ne 0) { Stop-WithError 'Backend build failed.' }
                 }
+                # Run a copy, so rebuilding (e.g. 'mvn verify') cannot replace or lock the jar in use.
+                Copy-Item -Path $jar -Destination '.run/schoomano.jar' -Force
+                $jar = '.run/schoomano.jar'
                 Write-Info "Starting local backend on port $($script:ApiPort)"
                 Set-ScriptEnv 'SCHOOMANO_PORT' "$($script:ApiPort)"
                 Set-ScriptEnv 'SCHOOMANO_DB_URL' "jdbc:postgresql://localhost:$($script:DbPort)/schoomano"

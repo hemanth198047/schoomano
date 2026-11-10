@@ -22,3 +22,15 @@ export function localInputToIsoIst(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) throw new Error('expected YYYY-MM-DDTHH:mm');
   return `${value}:00+05:30`;
 }
+
+/** Formats a calendar day ("2026-08-15") without shifting it through a time zone. */
+export function formatDay(isoDate: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) throw new Error('expected YYYY-MM-DD');
+  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeZone: 'UTC' }).format(
+    new Date(`${isoDate}T00:00:00Z`),
+  );
+}
+
+export function formatDayRange(startsOn: string, endsOn: string): string {
+  return startsOn === endsOn ? formatDay(startsOn) : `${formatDay(startsOn)} – ${formatDay(endsOn)}`;
+}

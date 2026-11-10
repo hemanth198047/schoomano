@@ -15,6 +15,7 @@ export interface ScopeInfo {
 const nav: { to: string; label: MessageKey }[] = [
   { to: '/', label: 'nav.today' },
   { to: '/campuses', label: 'nav.campuses' },
+  { to: '/academic', label: 'nav.academic' },
   { to: '/settings', label: 'nav.configuration' },
   { to: '/design-system', label: 'nav.designSystem' },
 ];

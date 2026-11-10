@@ -1,6 +1,6 @@
 # Implementation status
 
-Living document, updated at the end of every slice. Last update: **2026-11-10, Stage A.1 first green build (partial)**.
+Living document, updated at the end of every slice. Last update: **2026-11-10, Stage A.1 first green build (partial) + B1 academic structure (first increment)**.
 
 Status values: **Not started**, **In progress**, **Implemented** (code complete, tests written), **Verified** (tests executed and passing, evidence linked), **Deferred** (deliberately postponed, reason given).
 
@@ -23,6 +23,10 @@ Nothing below claims production readiness. No module has been used by a real sch
 | Web container: nginx, `/api` proxy, SPA fallback, CSP and headers | **Verified** | Template rendered as the image does and run with real nginx against the production build: `/healthz`, proxied `/api/v1/me`, deep-link fallback, immutable asset caching, 404 for missing assets, CSP/nosniff/no-referrer present |
 | Container images and Compose file | **Implemented, not executed** | Both Dockerfiles pass hadolint; Compose file valid against the Compose Specification schema (with a negative control). **Images not built yet**: the 2026-11-10 attempt was stopped by Docker Hub rate limiting (429) in the build sandbox, not by a build error; CI builds both |
 | Start/stop/status/logs/seed/db-test scripts (sh, PowerShell, cmd) | **Verified with test doubles** | Relative paths from the repo root (run from any folder); automatic free-port selection saved to `.env`, never moving ports held by Schoomano itself; Docker output goes straight to the console with plain progress (fixes "failed to get console" on Windows); PowerShell restores the caller's folder and environment. POSIX scripts: ShellCheck clean, parse under `dash`. PowerShell: parse clean under PowerShell 7.6. Both families behaviour-tested with a stand-in `docker` command (compose calls recorded; `seed` and `db-test` executed for real against PostgreSQL), real Vite in `--dev` mode (start, proxy, status, logs, stop, no double start), stale-pid safety, and failure paths with correct exit codes. **Not yet run against real Docker, and the PowerShell scripts not yet run on Windows itself** |
+| Academic structure, database (B1) | **Verified** | V3 migration; `backend/db/tests/academic_structure_test.sql` A1–A8 (tenant isolation, term overlap and out-of-year rejection, programme/campus consistency, enrollment section must match its year, duplicate sections and grade ordinals, grade scale per programme). Synthetic academic seed is re-runnable (second run is a no-op) |
+| Academic structure, rules (B1) | **Verified** | `com.schoomano.domain.academic`: `TermRules`, `GradeScale`, `RolloverPlanner` with 13 unit tests (overlap messages, inclusive grade boundaries, promotion within a programme, final grade completes, leap day, century label) |
+| Academic structure, API (B1) | **Verified** | `AcademicController` + config at PROGRAMME scope; `AcademicStructureApiIT` 8/8: per-programme read, teacher read-only (403 on writes), guardian and other tenant get 404, overlap rejected with reasons, wrong-campus programme rejected, each write audited (exactly one event each), rollover preview writes no academic rows, grade scale validated and effective-dated per programme |
+| Academic structure, web (B1) | **Verified** | `/academic` page: terms, sections with occupancy, subjects, calendar, add-term form showing server reasons, rollover preview. 6 Vitest tests incl. axe. Checked in a browser at 1366 px and 390 px against the running stack |
 | CI pipeline (6 jobs) | **Implemented, not executed** | `.github/workflows/ci.yml`; not yet run on GitHub |
 | API contract | **Verified** (lint) | `docs/api/openapi.yaml` valid per Redocly CLI |
 
@@ -33,7 +37,7 @@ Nothing below claims production readiness. No module has been used by a real sch
 | M01 Organization and identity | P0 | **In progress** | Data model, policy engine and `/me` done. Parent phone OTP designed (ADR 0009). Missing: OTP and staff OIDC/MFA implementation (B4), invitations, custom roles UI, relationship admin UI (B3) |
 | M02 Admissions CRM | P1 | Not started | `student_enrollment` table exists as a dependency only |
 | M03 Student information | P0 | Not started | `person`/`household` base tables exist; B3 |
-| M04 Academic structure and calendar | P0 | **In progress** | Academic years with overlap protection (T8); CBSE and State programmes seeded. Per-programme classes, subjects, terms, grade scales, calendar, rollover: B1 |
+| M04 Academic structure and calendar | P0 | **In progress** | B1 first increment done: per-programme grades, subjects, terms (no overlap, inside year), sections, campus calendar, grade scales as effective-dated config per programme, rollover preview (writes nothing), all writes audited. Missing: edit/retire endpoints, academic-year creation, rollover commit, web forms beyond terms, grade-scale editor in the web settings page |
 | M05 Scheduling and substitutions | P0 | Not started | B5 |
 | M06 Attendance | P0 | Not started | Config key `attendance.late_after_minutes` exists; B6 |
 | M07 Curriculum planning | P1 | Not started | |
@@ -69,4 +73,6 @@ Nothing below claims production readiness. No module has been used by a real sch
 4. No production sign-in yet: parent OTP (ADR 0009) and staff OIDC are slice B4.
 5. Hindi strings are partial and need native review; the State-board language (e.g. Kannada, Tamil) depends on which state is chosen.
 6. No mobile app yet (ADR 0005 is Proposed).
-7. `config_version.value` is not schema-validated per key yet; the web validates the two known keys.
+7. `config_version.value` is checked server-side only for known keys (`attendance.late_after_minutes`, `assessment.grade_scale`, `flag.*`); other keys accept any JSON.
+8. B1 structure is create-only: grades, subjects, terms, sections and calendar events cannot yet be edited or retired through the API, and only terms can be added from the web.
+9. Fixed in this update: wide tables made the whole page scroll sideways on phones (grid column blowout); the dev backend now runs a copy of the jar from `.run/`, so `mvn verify` can no longer replace the jar under a running JVM (seen here as a hung API).

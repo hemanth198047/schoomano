@@ -80,7 +80,7 @@ code {
 .shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: var(--size-nav-width) 1fr;
+  grid-template-columns: var(--size-nav-width) minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     'rail scope'
@@ -105,6 +105,8 @@ code {
 
 .scope-bar__path {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -122,7 +124,12 @@ code {
   font-weight: var(--font-weight-bold);
 }
 
+.scope-bar__switch {
+  max-width: 100%;
+}
+
 .scope-bar__switch select {
+  max-width: 100%;
   min-height: var(--size-touch-target);
   font: inherit;
   font-weight: var(--font-weight-bold);
@@ -341,6 +348,14 @@ code {
   max-width: 34rem;
 }
 
+.form--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  max-width: none;
+  margin-block-end: var(--space-4);
+}
+
 .form__actions {
   display: flex;
   gap: var(--space-3);
@@ -536,6 +551,11 @@ code {
   font-size: var(--font-size-lg);
 }
 
+.state__problems {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
 .state__meta {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
@@ -677,7 +697,7 @@ code {
 
 @media (max-width: 52rem) {
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'scope'
       'main';

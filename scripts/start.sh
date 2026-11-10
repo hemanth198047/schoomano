@@ -65,9 +65,11 @@ start_dev_backend() {
     info "Building backend (mvn package, tests skipped; run 'cd backend && mvn verify' for tests)"
     mvn -B -q -f backend/pom.xml -DskipTests package
   fi
+  # Run a copy, so rebuilding (e.g. 'mvn verify') cannot replace the jar under the running JVM.
+  cp "$jar" "$RUN_DIR/schoomano.jar"
   info "Starting local backend on port $API_PORT"
   SCHOOMANO_PORT="$API_PORT" SCHOOMANO_DB_URL="jdbc:postgresql://localhost:$DB_PORT/schoomano" \
-    nohup java -jar "$jar" >"$RUN_DIR/backend.log" 2>&1 &
+    nohup java -jar "$RUN_DIR/schoomano.jar" >"$RUN_DIR/backend.log" 2>&1 &
   echo $! >"$(pid_file backend)"
   wait_http backend "$API_HEALTH" "$(cat "$(pid_file backend)")"
 }
