@@ -3,7 +3,7 @@ info:
   title: Schoomano API
   version: 0.1.0
   description: |
-    Stage A contract. Every endpoint authorizes on the server using the authenticated identity.
+    Stage A + B1 (academic structure) contract. Every endpoint authorizes on the server using the authenticated identity.
     The tenant is resolved from the identity, never accepted from the client; `X-Schoomano-Tenant`
     only selects among schools the identity already belongs to.
 
@@ -57,6 +57,10 @@ paths:
         - name: campusId
           in: query
           schema: { type: string, format: uuid }
+        - name: programmeId
+          in: query
+          description: Resolve for one programme (e.g. `assessment.grade_scale`). Takes precedence over campusId.
+          schema: { type: string, format: uuid }
         - name: asOf
           in: query
           description: Defaults to now. Past dates return the value that applied then.
@@ -107,7 +111,7 @@ paths:
 
   /api/v1/config/drafts/{id}/preview:
     post:
-      summary: Show, per campus, the value before and after the draft takes effect
+      summary: Show, per campus (or for the one programme of a programme-scoped draft), the value before and after the draft takes effect
       operationId: previewConfigDraft
       parameters:
         - $ref: '#/components/parameters/Id'
@@ -141,6 +145,185 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
 
+  /api/v1/campuses/{campusId}/academic-structure:
+    get:
+      summary: Programmes with grades, sections, subjects and terms, plus the calendar, for one academic year (CAMPUS_READ)
+      operationId: getAcademicStructure
+      parameters:
+        - $ref: '#/components/parameters/CampusId'
+        - name: yearId
+          in: query
+          description: Defaults to the ACTIVE year, else the latest.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcademicStructure' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/programmes/{programmeId}/grades:
+    post:
+      summary: Add a grade to a programme (ACADEMIC_STRUCTURE_MANAGE). Audited.
+      operationId: createGrade
+      parameters:
+        - $ref: '#/components/parameters/ProgrammeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, ordinal]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9-]{1,12}$' }
+                name: { type: string, maxLength: 80 }
+                ordinal: { type: integer, minimum: -3, maximum: 20, description: Promotion order within the programme }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Grade' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/programmes/{programmeId}/subjects:
+    post:
+      summary: Add a subject to a programme (ACADEMIC_STRUCTURE_MANAGE). Audited.
+      operationId: createSubject
+      parameters:
+        - $ref: '#/components/parameters/ProgrammeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9-]{2,16}$' }
+                name: { type: string, maxLength: 80 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subject' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/terms:
+    post:
+      summary: Add a term for one programme. Must lie inside the year and not overlap the programme's other terms. Audited.
+      operationId: createTerm
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [programmeId, label, startsOn, endsOn]
+              properties:
+                programmeId: { type: string, format: uuid }
+                label: { type: string, maxLength: 40 }
+                startsOn: { type: string, format: date }
+                endsOn: { type: string, format: date }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Term' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409':
+          description: "`term_rejected` (with `problems`: overlap, outside the year, duplicate label) or `wrong_campus`"
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /api/v1/academic-years/{yearId}/sections:
+    post:
+      summary: Add a section (e.g. Grade 5 C) for the year (ACADEMIC_STRUCTURE_MANAGE). Audited.
+      operationId: createSection
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gradeId, code]
+              properties:
+                gradeId: { type: string, format: uuid }
+                code: { type: string, pattern: '^[A-Z0-9-]{1,8}$' }
+                capacity: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Section' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/calendar-events:
+    post:
+      summary: Add a holiday, exam window, event or working day (whole campus, or one programme). Audited.
+      operationId: createCalendarEvent
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, title, startsOn, endsOn]
+              properties:
+                kind: { type: string, enum: [HOLIDAY, EXAM, EVENT, WORKING_DAY] }
+                title: { type: string, maxLength: 120 }
+                startsOn: { type: string, format: date }
+                endsOn: { type: string, format: date }
+                programmeId: { type: string, format: uuid, description: Omit for the whole campus }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CalendarEvent' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/academic-years/{yearId}/rollover-preview:
+    post:
+      summary: Propose next year (dates, terms, sections, promotions, warnings). Computes only; writes no academic data.
+      operationId: previewRollover
+      parameters:
+        - $ref: '#/components/parameters/YearId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RolloverPreview' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
@@ -165,6 +348,21 @@ components:
       in: path
       required: true
       schema: { type: string, pattern: '^[a-z][a-z0-9_.]{2,80}$' }
+    CampusId:
+      name: campusId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ProgrammeId:
+      name: programmeId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    YearId:
+      name: yearId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     Id:
       name: id
       in: path
@@ -188,8 +386,12 @@ components:
         detail: { type: string }
         code:
           type: string
-          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected]
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year]
         correlationId: { type: string }
+        problems:
+          type: array
+          description: User-readable reasons, e.g. which term a new term overlaps
+          items: { type: string }
         fields:
           type: array
           items:
@@ -265,7 +467,7 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid }
-        scopeLevel: { type: string, enum: [GROUP, CAMPUS] }
+        scopeLevel: { type: string, enum: [GROUP, CAMPUS, PROGRAMME] }
         scopeId: { type: string, format: uuid }
         version: { type: integer }
         value: {}
@@ -279,9 +481,13 @@ components:
       type: object
       required: [scopeLevel, scopeId, value, effectiveFrom, changeNote]
       properties:
-        scopeLevel: { type: string, enum: [GROUP, CAMPUS] }
+        scopeLevel: { type: string, enum: [GROUP, CAMPUS, PROGRAMME] }
         scopeId: { type: string, format: uuid }
-        value: { description: Any JSON value }
+        value:
+          description: Any JSON value. Known keys are checked (e.g. `assessment.grade_scale` must be a GradeScale; flags are booleans).
+          anyOf:
+            - $ref: '#/components/schemas/GradeScale'
+            - {}
         effectiveFrom: { type: string, format: date-time }
         changeNote: { type: string, maxLength: 500 }
 
@@ -293,3 +499,150 @@ components:
         before: {}
         after: {}
         changed: { type: boolean }
+        programmeId: { type: [string, 'null'], format: uuid }
+        programmeName: { type: [string, 'null'] }
+
+    GradeScale:
+      description: "Value of config key `assessment.grade_scale` (PROGRAMME scope only). Each band is the lowest whole percentage earning that grade; one band starts at 0."
+      type: object
+      required: [bands]
+      properties:
+        bands:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            required: [grade, minPercent]
+            properties:
+              grade: { type: string, pattern: '^[A-Za-z0-9+-]{1,6}$' }
+              minPercent: { type: integer, minimum: 0, maximum: 100 }
+
+    AcademicYear:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string, examples: ['2026-27'] }
+        startsOn: { type: string, format: date }
+        endsOn: { type: string, format: date }
+        status: { type: string, enum: [PLANNED, ACTIVE, CLOSED] }
+
+    Section:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        capacity: { type: [integer, 'null'] }
+        students: { type: integer, description: Enrolled students placed in this section }
+
+    Grade:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        ordinal: { type: integer }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/Section' }
+
+    Subject:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [ACTIVE, RETIRED] }
+
+    Term:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        startsOn: { type: string, format: date }
+        endsOn: { type: string, format: date }
+
+    CalendarEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [HOLIDAY, EXAM, EVENT, WORKING_DAY] }
+        title: { type: string }
+        startsOn: { type: string, format: date }
+        endsOn: { type: string, format: date }
+        programmeId: { type: [string, 'null'], format: uuid }
+
+    AcademicStructure:
+      type: object
+      properties:
+        campusId: { type: string, format: uuid }
+        campusName: { type: string }
+        years:
+          type: array
+          items: { $ref: '#/components/schemas/AcademicYear' }
+        year:
+          oneOf:
+            - $ref: '#/components/schemas/AcademicYear'
+            - type: 'null'
+        programmes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              code: { type: string }
+              name: { type: string }
+              board: { type: string, enum: [CBSE, CISCE, IB, CAMBRIDGE, STATE, OTHER] }
+              boardDetail: { type: [string, 'null'] }
+              grades:
+                type: array
+                items: { $ref: '#/components/schemas/Grade' }
+              subjects:
+                type: array
+                items: { $ref: '#/components/schemas/Subject' }
+              terms:
+                type: array
+                items: { $ref: '#/components/schemas/Term' }
+        calendar:
+          type: array
+          items: { $ref: '#/components/schemas/CalendarEvent' }
+
+    DateRange:
+      type: object
+      properties:
+        startsOn: { type: string, format: date }
+        endsOn: { type: string, format: date }
+
+    RolloverPreview:
+      type: object
+      properties:
+        label: { type: string, examples: ['2027-28'] }
+        dates: { $ref: '#/components/schemas/DateRange' }
+        terms:
+          type: array
+          items:
+            type: object
+            properties:
+              programmeCode: { type: string }
+              label: { type: string }
+              dates: { $ref: '#/components/schemas/DateRange' }
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              programmeCode: { type: string }
+              gradeCode: { type: string }
+              sectionCode: { type: string }
+              capacity: { type: [integer, 'null'] }
+        promotions:
+          type: array
+          items:
+            type: object
+            properties:
+              programmeCode: { type: string }
+              fromGrade: { type: string }
+              toGrade: { type: [string, 'null'], description: null when the students complete the programme }
+              students: { type: integer }
+        warnings:
+          type: array
+          items: { type: string }

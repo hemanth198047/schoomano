@@ -11,68 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.sql.DriverManager;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-/**
- * Stage A acceptance through the real HTTP stack, real PostgreSQL (RLS on) and the unprivileged app role.
- * Requires Docker. Run from backend/: mvn verify
- */
-@Testcontainers
-@SpringBootTest(properties = "schoomano.auth.dev-mode=true")
-@AutoConfigureMockMvc
-class StageAApiIT {
-
-    @Container
-    static final PostgreSQLContainer<?> PG = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("schoomano").withUsername("schoomano_owner").withPassword("owner-test-only");
-
-    @DynamicPropertySource
-    static void props(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", PG::getJdbcUrl);
-        r.add("spring.datasource.username", () -> "schoomano_app");
-        r.add("spring.datasource.password", () -> "app-test-only");
-        r.add("spring.flyway.url", PG::getJdbcUrl);
-        r.add("spring.flyway.user", PG::getUsername);
-        r.add("spring.flyway.password", PG::getPassword);
-    }
-
-    @BeforeAll
-    static void migrateAndSeed() throws Exception {
-        try (var c = DriverManager.getConnection(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword());
-             var s = c.createStatement()) {
-            s.execute("create role schoomano_app login password 'app-test-only'");
-        }
-        Flyway.configure().dataSource(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword()).load().migrate();
-        // The seed starts with a psql-only re-run guard; JDBC executes the SQL from "begin;" onwards.
-        String file = Files.readString(Path.of("db/seed/dev_seed.sql"));
-        String seed = file.substring(file.indexOf("\nbegin;") + 1);
-        try (var c = DriverManager.getConnection(PG.getJdbcUrl(), PG.getUsername(), PG.getPassword());
-             var s = c.createStatement()) {
-            s.execute(seed);
-        }
-    }
-
-    @Autowired
-    MockMvc mvc;
-
-    private static String dev(String subject) {
-        return "Bearer dev:" + subject;
-    }
+/** Stage A acceptance through the real HTTP stack, real PostgreSQL (RLS on) and the unprivileged app role. */
+class StageAApiIT extends ApiITSupport {
 
     @Test
     void unauthenticatedRequestsAreRejected() throws Exception {

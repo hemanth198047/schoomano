@@ -21,6 +21,13 @@ public class ScopeDirectory {
             .child(new ScopeNode(ScopeLevel.CAMPUS, campusId)));
     }
 
+    /** GROUP / LEGAL_ENTITY / CAMPUS / PROGRAMME. */
+    public Optional<ScopePath> programmePath(JdbcTemplate jdbc, TenantId tenant, UUID programmeId) {
+        List<UUID> campus = jdbc.queryForList("select campus_id from programme where id = ?", UUID.class, programmeId);
+        return campus.stream().findFirst().flatMap(c -> campusPath(jdbc, tenant, c))
+            .map(p -> p.child(new ScopeNode(ScopeLevel.PROGRAMME, programmeId)));
+    }
+
     /** A student's scope is the campus of their most recent enrollment. */
     public Optional<ScopePath> studentPath(JdbcTemplate jdbc, TenantId tenant, UUID studentId) {
         List<UUID> campus = jdbc.queryForList("""
@@ -39,8 +46,9 @@ public class ScopeDirectory {
                 yield ScopePath.group(tenant);
             }
             case CAMPUS -> campusPath(jdbc, tenant, node.id()).orElseThrow(ApiException::notFound);
+            case PROGRAMME -> programmePath(jdbc, tenant, node.id()).orElseThrow(ApiException::notFound);
             default -> throw ApiException.badRequest("unsupported_scope",
-                "Only GROUP and CAMPUS scopes are supported in this release.");
+                "Only GROUP, CAMPUS and PROGRAMME scopes are supported in this release.");
         };
     }
 }

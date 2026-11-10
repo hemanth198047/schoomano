@@ -17,7 +17,9 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ProblemDetail api(ApiException e) {
-        return problem(e.status(), e.code(), e.getMessage());
+        ProblemDetail p = problem(e.status(), e.code(), e.getMessage());
+        e.properties().forEach(p::setProperty);
+        return p;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -7,6 +7,8 @@ package com.schoomano.domain.access;
 public enum Permission {
     CAMPUS_READ(false),
     CAMPUS_MANAGE(true),
+    /** Grades, subjects, terms, sections, calendar, rollover (M04). */
+    ACADEMIC_STRUCTURE_MANAGE(true),
     PERSON_MANAGE(true),
     ROLE_GRANT_MANAGE(true),
     STUDENT_READ_BASIC(false),

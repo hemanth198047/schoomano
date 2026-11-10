@@ -48,8 +48,11 @@ jobs:
           $P -c "create role schoomano_app login password 'ci-app-only' nobypassrls"
           for f in backend/src/main/resources/db/migration/V*.sql; do $P -f "$f"; done
           $P -f backend/db/seed/dev_seed.sql
+          $P -f backend/db/seed/dev_seed_academic.sql
           $P -f backend/db/seed/dev_seed.sql
+          $P -f backend/db/seed/dev_seed_academic.sql
           $P -f backend/db/tests/rls_and_invariants_test.sql
+          $P -f backend/db/tests/academic_structure_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

@@ -74,16 +74,20 @@ public class ConfigController {
                               Instant publishedAt) { }
     public record DraftRequest(@NotNull ScopeLevel scopeLevel, @NotNull UUID scopeId, @NotNull JsonNode value,
                                @NotNull OffsetDateTime effectiveFrom, @NotBlank @Size(max = 500) String changeNote) { }
-    public record PreviewRow(UUID campusId, String campusName, JsonNode before, JsonNode after, boolean changed) { }
+    public record PreviewRow(UUID campusId, String campusName, JsonNode before, JsonNode after, boolean changed,
+                             UUID programmeId, String programmeName) { }
 
     @GetMapping("/{key}")
     public ResolvedView resolve(RequestContext ctx, @PathVariable String key,
                                 @RequestParam(required = false) UUID campusId,
+                                @RequestParam(required = false) UUID programmeId,
                                 @RequestParam(required = false) OffsetDateTime asOf) {
         validKey(key);
         Instant at = asOf == null ? clock.instant() : asOf.toInstant();
         return tenantTx.run(ctx.tenant(), jdbc -> {
-            ScopePath target = campusId == null ? ScopePath.group(ctx.tenant())
+            ScopePath target = programmeId != null
+                ? scopes.programmePath(jdbc, ctx.tenant(), programmeId).orElseThrow(ApiException::notFound)
+                : campusId == null ? ScopePath.group(ctx.tenant())
                 : scopes.campusPath(jdbc, ctx.tenant(), campusId).orElseThrow(ApiException::notFound);
             authz.requireOrNotFound(jdbc, ctx, Permission.CONFIG_READ, Resource.ordinary("config", null, target, null));
             var resolved = ConfigResolver.resolve(entries(jdbc, key), key, target, at).orElseThrow(ApiException::notFound);
@@ -112,6 +116,7 @@ public class ConfigController {
     @ResponseStatus(HttpStatus.CREATED)
     public VersionView createDraft(RequestContext ctx, @PathVariable String key, @Valid @RequestBody DraftRequest req) {
         validKey(key);
+        ConfigValues.validate(key, req.scopeLevel(), req.value());
         return tenantTx.run(ctx.tenant(), jdbc -> {
             ScopeNode node = new ScopeNode(req.scopeLevel(), req.scopeId());
             ScopePath path = scopes.forNode(jdbc, ctx.tenant(), node);
@@ -136,15 +141,21 @@ public class ConfigController {
     public List<PreviewRow> preview(RequestContext ctx, @PathVariable UUID id) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
             ConfigEntry draft = draftEntry(jdbc, ctx, id);
-            List<UUID> campusIds = jdbc.queryForList("select id from campus order by name", UUID.class);
-            List<ScopePath> targets = campusIds.stream()
-                .map(c -> scopes.campusPath(jdbc, ctx.tenant(), c).orElseThrow()).toList();
+            // A programme-scoped draft affects only that programme; otherwise preview every campus.
+            List<ScopePath> targets = draft.scope().level() == ScopeLevel.PROGRAMME
+                ? List.of(scopes.forNode(jdbc, ctx.tenant(), draft.scope()))
+                : jdbc.queryForList("select id from campus order by name", UUID.class).stream()
+                    .map(c -> scopes.campusPath(jdbc, ctx.tenant(), c).orElseThrow()).toList();
             List<ConfigChange> changes = ConfigResolver.preview(entries(jdbc, draft.key()), draft, targets,
                 draft.effectiveFrom());
             return changes.stream().map(ch -> {
-                UUID campus = ch.target().leaf().id();
+                UUID campus = ch.target().nodeAt(ScopeLevel.CAMPUS).orElseThrow().id();
                 String name = jdbc.queryForObject("select name from campus where id = ?", String.class, campus);
-                return new PreviewRow(campus, name, parse(ch.before()), parse(ch.after()), ch.changed());
+                UUID programme = ch.target().nodeAt(ScopeLevel.PROGRAMME).map(ScopeNode::id).orElse(null);
+                String programmeName = programme == null ? null
+                    : jdbc.queryForObject("select name from programme where id = ?", String.class, programme);
+                return new PreviewRow(campus, name, parse(ch.before()), parse(ch.after()), ch.changed(),
+                    programme, programmeName);
             }).toList();
         });
     }

@@ -67,6 +67,38 @@ insert into outbox_event (tenant_id, aggregate_type, aggregate_id, event_type, p
 values ('10000000-0000-4000-8000-000000000001', 'config', 'attendance.late_after_minutes', 'config.published',
         '{"key":"attendance.late_after_minutes","version":99}'::jsonb);
 
+-- AcademicController (B1)
+select programme_id from grade_level where id = md5('grade-CBSE-K12-5')::uuid;
+select campus_id from programme where id = '14000000-0000-4000-8000-000000000001';
+select id, campus_id, label, starts_on, ends_on, status from academic_year
+ where campus_id = '12000000-0000-4000-8000-000000000001' order by starts_on desc;
+select id, code, name, board, board_detail from programme where campus_id = '12000000-0000-4000-8000-000000000001' order by code;
+select id, code, name, ordinal from grade_level where programme_id = '14000000-0000-4000-8000-000000000001' order by ordinal;
+select s.grade_level_id, s.id, s.code, s.capacity,
+       (select count(*) from student_enrollment e where e.class_section_id = s.id and e.status = 'ENROLLED')
+  from class_section s join grade_level g on g.id = s.grade_level_id
+ where s.academic_year_id = '15000000-0000-4000-8000-000000000001' and g.programme_id = '14000000-0000-4000-8000-000000000001';
+select id, code, name, status from subject where programme_id = '14000000-0000-4000-8000-000000000001' order by code;
+select id, kind, title, starts_on, ends_on, programme_id from calendar_event
+ where academic_year_id = '15000000-0000-4000-8000-000000000001' order by starts_on, title;
+select g.id, g.programme_id, p.code, g.code, g.ordinal
+  from grade_level g join programme p on p.id = g.programme_id where p.campus_id = '12000000-0000-4000-8000-000000000001';
+select p.code, t.label, t.starts_on, t.ends_on
+  from academic_term t join programme p on p.id = t.programme_id where t.academic_year_id = '15000000-0000-4000-8000-000000000001';
+insert into grade_level (tenant_id, programme_id, code, name, ordinal)
+values ('10000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000001', 'NUR', 'Nursery', 0) returning id;
+insert into subject (tenant_id, programme_id, code, name)
+values ('10000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000001', 'ART', 'Art') returning id;
+insert into academic_term (tenant_id, academic_year_id, programme_id, label, starts_on, ends_on)
+values ('10000000-0000-4000-8000-000000000001', '15000000-0000-4000-8000-000000000001',
+        '14000000-0000-4000-8000-000000000003', 'Bridge', '2026-04-01', '2026-04-30') returning id;
+insert into class_section (tenant_id, academic_year_id, grade_level_id, code, capacity)
+values ('10000000-0000-4000-8000-000000000001', '15000000-0000-4000-8000-000000000001',
+        md5('grade-CBSE-K12-5')::uuid, 'Z', 30) returning id;
+insert into calendar_event (tenant_id, academic_year_id, programme_id, kind, title, starts_on, ends_on)
+values ('10000000-0000-4000-8000-000000000001', '15000000-0000-4000-8000-000000000001', null,
+        'EVENT', 'Sports day', '2026-12-10', '2026-12-10') returning id;
+
 -- TenantTx
 select set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
 

@@ -4,6 +4,6 @@ Enter-Root
 try {
     Import-DotEnv
     Assert-Docker
-    Invoke-PsqlInDb @('-q', '-f', '/schoomano-db/tests/rls_and_invariants_test.sql', '-f', '/schoomano-db/tests/app_queries_smoke_test.sql')
+    Invoke-PsqlInDb @('-q', '-f', '/schoomano-db/tests/rls_and_invariants_test.sql', '-f', '/schoomano-db/tests/academic_structure_test.sql', '-f', '/schoomano-db/tests/app_queries_smoke_test.sql')
     exit 0
 } finally { Exit-Root }

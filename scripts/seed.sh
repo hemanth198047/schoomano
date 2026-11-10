@@ -9,4 +9,5 @@ ready=$(psql_in_db -tA -c "select to_regclass('public.tenant') is not null" 2>/d
 [ "$(printf '%s' "$ready" | tr -d '[:space:]')" = t ] || die "Schema not found. Start the backend first: scripts/start.sh"
 info "Loading synthetic seed data"
 psql_in_db -q -f /schoomano-db/seed/dev_seed.sql
+psql_in_db -q -f /schoomano-db/seed/dev_seed_academic.sql
 info "Seed complete. Sign in as Asha, Ravi, Farah, Meera, Karan or Other (all synthetic)."
