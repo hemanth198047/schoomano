@@ -97,8 +97,8 @@ Nothing below claims production readiness. No module has been used by a real sch
 
 | Item | Status | Notes |
 |---|---|---|
-| `GET /students/{id}/attendance` (guardian or staff) | **CI pending** | Guardian needs the view-attendance capability; 92-day cap; denied reads are 404. `StudentAttendanceApiIT` |
-| `mobile/` Expo app: core library | **Verified locally** | 22 unit tests: token refresh shared across parallel calls and sign-out on a dead refresh token, durable attendance queue (survives restart, ordered, retry-safe, refused batches kept visible), saved class lists used only when offline |
+| `GET /students/{id}/attendance` (guardian or staff) | **Verified in CI** | Guardian needs the view-attendance capability; 92-day cap; denied reads are 404. `StudentAttendanceApiIT` passed |
+| `mobile/` Expo app: core library | **Verified in CI** (new `mobile` job) | 22 unit tests: token refresh shared across parallel calls and sign-out on a dead refresh token, durable attendance queue (survives restart, ordered, retry-safe, refused batches kept visible), saved class lists used only when offline |
 | `mobile/` screens (sign-in, parent home, teacher attendance) | **Written, typechecked, not run on a device** | No emulator or device is available to this build; cold start under 3 s on a 2 GB phone and 30-minute offline periods are untested |
 | Teacher sign-in on the phone | **Not built** | Phone codes carry guardian links only (ADR 0009); staff need the school's identity provider (OIDC). Development builds accept a pasted dev token |
 | Encrypted offline store | **Not built** | Queue and saved lists use AsyncStorage (not encrypted). Tokens use the secure store. ADR 0005 asks for encrypted storage |
