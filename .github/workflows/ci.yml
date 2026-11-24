@@ -46,7 +46,7 @@ jobs:
         run: |
           P="psql -h localhost -U schoomano_owner -d schoomano -v ON_ERROR_STOP=1"
           $P -c "create role schoomano_app login password 'ci-app-only' nobypassrls"
-          for f in backend/src/main/resources/db/migration/V*.sql; do $P -f "$f"; done
+          for f in $(ls backend/src/main/resources/db/migration/V*.sql | sort -V); do $P -f "$f"; done
           for run in 1 2; do for f in backend/db/seed/*.sql; do $P -f "$f"; done; done
           $P -f backend/db/tests/rls_and_invariants_test.sql
           $P -f backend/db/tests/academic_structure_test.sql
