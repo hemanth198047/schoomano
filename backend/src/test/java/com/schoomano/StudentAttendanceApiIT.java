@@ -12,7 +12,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class StudentAttendanceApiIT extends ApiITSupport {
 
     static final String TENANT = "10000000-0000-4000-8000-000000000001";
-    static final String HARI = "13000000-0000-4000-8000-000000000901";
+    static final String HARI = "13000000-0000-4000-8000-0000000b0901";
     static final String URL = "/api/v1/students/" + HARI + "/attendance";
 
     private static MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder b, String who) {
@@ -38,7 +38,7 @@ class StudentAttendanceApiIT extends ApiITSupport {
             """.formatted(TENANT, HARI));
         String[][] guardians = {{"911", "true"}, {"912", "false"}};
         for (String[] g : guardians) {
-            String id = "13000000-0000-4000-8000-000000000" + g[0];
+            String id = "13000000-0000-4000-8000-0000000b0" + g[0];
             ownerUpdate("""
                 insert into person (id, tenant_id, school_ref, given_name, family_name, mobile_e164)
                   values ('%1$s', '%2$s', 'GRD-IT-%3$s', 'Parent%3$s', 'Synthetic', '+919840000%3$s') on conflict (id) do nothing;
