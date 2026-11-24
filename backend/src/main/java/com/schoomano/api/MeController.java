@@ -38,6 +38,11 @@ public class MeController {
         var now = clock.instant();
         var actor = ctx.actor();
         return tenantTx.run(ctx.tenant(), jdbc -> {
+            if (actor.kind() == com.schoomano.domain.access.Actor.Kind.SUPPORT) {
+                // Platform support is not a person of the school: no profile, no roles, no children.
+                return new MeView(actor.personId(), "Platform support", new TenantView(ctx.tenant().value(), ctx.tenantSlug(), ctx.tenantName()),
+                    List.of(), List.of(), AccessPolicy.POLICY_VERSION);
+            }
             String name = jdbc.queryForObject(
                 "select coalesce(preferred_name, given_name) || coalesce(' ' || family_name, '') from person where id = ?",
                 String.class, actor.personId());

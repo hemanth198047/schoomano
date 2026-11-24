@@ -13,6 +13,8 @@ public enum Permission {
     IMPORT_MANAGE(true),
     PERSON_MANAGE(true),
     ROLE_GRANT_MANAGE(true),
+    /** Approve or end platform support access to this school (M30). */
+    SUPPORT_GRANT_MANAGE(true),
     STUDENT_READ_BASIC(false),
     STUDENT_READ_ACADEMIC(false),
     STUDENT_WRITE(true),

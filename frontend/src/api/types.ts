@@ -428,3 +428,40 @@ export interface Reconciliation {
   exceptions: { kind: string; invoiceNumber: string; amountPaise: number; at: string; detail: string }[];
   collectedPaise: number;
 }
+
+export interface SupportGrant {
+  id: string;
+  supportUserRef: string;
+  purpose: string;
+  approvedBy: string;
+  startsAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  state: 'ACTIVE' | 'UPCOMING' | 'EXPIRED' | 'REVOKED';
+}
+
+export interface AuditRow {
+  seq: number;
+  occurredAt: string;
+  actorKind: string;
+  actorName: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  outcome: string;
+  reason: string | null;
+  correlationId: string | null;
+}
+
+export interface OperationsHealth {
+  at: string;
+  supportAccessLive: number;
+  checks: { key: string; label: string; level: 'OK' | 'ATTENTION'; detail: string }[];
+}
+
+export interface AuditVerification {
+  checked: number;
+  intact: boolean;
+  brokenSeq: number | null;
+  problem: string | null;
+}

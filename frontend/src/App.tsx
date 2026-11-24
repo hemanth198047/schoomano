@@ -17,6 +17,7 @@ import { TodayPage } from './pages/TodayPage';
 
 // Loaded on first visit so the first screen stays light.
 const FeesPage = lazy(() => import('./pages/FeesPage').then((m) => ({ default: m.FeesPage })));
+const SupportPage = lazy(() => import('./pages/SupportPage').then((m) => ({ default: m.SupportPage })));
 const NoticesPage = lazy(() => import('./pages/NoticesPage').then((m) => ({ default: m.NoticesPage })));
 const AttendancePage = lazy(() =>
   import('./pages/AttendancePage').then((m) => ({ default: m.AttendancePage })),
@@ -110,6 +111,14 @@ function SignedIn() {
                 campuses={campuses.status === 'ready' ? campuses.data : []}
                 selectedCampusId={selectedCampusId}
               />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <Suspense fallback={<LoadingState label="Opening support" />}>
+              <SupportPage me={me.data} />
             </Suspense>
           }
         />

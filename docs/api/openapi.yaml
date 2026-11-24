@@ -1519,6 +1519,72 @@ paths:
         '200': { description: Report, content: { application/json: { schema: { $ref: '#/components/schemas/Reconciliation' } } } }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/support/grants:
+    get:
+      tags: [Support]
+      summary: Platform support access this school has approved, newest first (SUPPORT_GRANT_MANAGE, school administrators only)
+      responses:
+        '200': { description: Grants, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SupportGrant' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Support]
+      summary: Approve a named support person for a stated purpose, 1 to 8 hours from now (SUPPORT_GRANT_MANAGE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [supportUserRef, purpose, hours]
+              properties:
+                supportUserRef: { type: string, minLength: 3, maxLength: 200, description: "Sign-in identity as issuer:subject" }
+                purpose: { type: string, minLength: 10, maxLength: 500 }
+                hours: { type: integer, minimum: 1, maximum: 8 }
+      responses:
+        '201': { description: Approved, content: { application/json: { schema: { $ref: '#/components/schemas/SupportGrant' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/support/grants/{id}/revoke:
+    post:
+      tags: [Support]
+      summary: End support access now (SUPPORT_GRANT_MANAGE). Takes effect on the next request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { reason: { type: string, maxLength: 200 } } }
+      responses:
+        '200': { description: Ended, content: { application/json: { schema: { $ref: '#/components/schemas/SupportGrant' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Already ended, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/audit:
+    get:
+      tags: [Support]
+      summary: The school's audit trail, newest first (AUDIT_READ; also open to platform support during an approved grant)
+      parameters:
+        - { name: actorKind, in: query, schema: { type: string, enum: [USER, SUPPORT, SYSTEM, BREAK_GLASS, INTEGRATION] } }
+        - { name: action, in: query, description: Prefix match, schema: { type: string } }
+        - { name: beforeSeq, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200': { description: Entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AuditRow' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/audit/verify:
+    get:
+      tags: [Support]
+      summary: Walk the whole trail and report the first gap, broken link or altered entry (AUDIT_READ). Entries written before V12 are checked for order and links only.
+      responses:
+        '200': { description: Result, content: { application/json: { schema: { type: object, properties: { checked: { type: integer }, intact: { type: boolean }, brokenSeq: { type: integer, nullable: true }, problem: { type: string, nullable: true } } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/operations/health:
+    get:
+      tags: [Support]
+      summary: "Operational checks for the school (AUDIT_READ): delivery backlog, failed texts, payments needing a person, attendance conflicts, audit volume, open support access"
+      responses:
+        '200': { description: Checks, content: { application/json: { schema: { type: object, properties: { at: { type: string, format: date-time }, supportAccessLive: { type: integer }, checks: { type: array, items: { type: object, properties: { key: { type: string }, label: { type: string }, level: { type: string, enum: [OK, ATTENTION] }, detail: { type: string } } } } } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
@@ -1738,7 +1804,7 @@ components:
         detail: { type: string }
         code:
           type: string
-          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected, invalid_code, invalid_code_format, otp_locked, otp_resend_too_soon, otp_rate_limited, invalid_refresh_token, sign_in_not_configured, sms_unavailable, reason_required, mfa_required, invalid_schedule, period_in_use, room_in_use, timetable_rejected, wrong_day, idempotency_key_required, idempotency_key_reused, invalid_range, invalid_status, invalid_source, duplicate_student, attendance_rejected, request_in_progress]
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected, invalid_code, invalid_code_format, otp_locked, otp_resend_too_soon, otp_rate_limited, invalid_refresh_token, sign_in_not_configured, sms_unavailable, reason_required, mfa_required, invalid_schedule, period_in_use, room_in_use, timetable_rejected, wrong_day, idempotency_key_required, idempotency_key_reused, invalid_range, grant_not_open, invalid_status, invalid_source, duplicate_student, attendance_rejected, request_in_progress]
         correlationId: { type: string }
         problems:
           type: array
@@ -2189,3 +2255,29 @@ components:
               amountPaise: { type: integer, format: int64 }
               at: { type: string, format: date-time }
               detail: { type: string }
+
+    SupportGrant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        supportUserRef: { type: string }
+        purpose: { type: string }
+        approvedBy: { type: string }
+        startsAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        state: { type: string, enum: [ACTIVE, UPCOMING, EXPIRED, REVOKED] }
+    AuditRow:
+      type: object
+      properties:
+        seq: { type: integer, format: int64 }
+        occurredAt: { type: string, format: date-time }
+        actorKind: { type: string }
+        actorName: { type: string }
+        action: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: string, nullable: true }
+        outcome: { type: string, enum: [ALLOW, DENY, ERROR, SUCCESS] }
+        reason: { type: string, nullable: true }
+        correlationId: { type: string, nullable: true }
+        details: { type: object }

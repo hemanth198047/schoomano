@@ -22,6 +22,7 @@ const nav: { to: string; label: MessageKey }[] = [
   { to: '/attendance', label: 'nav.attendance' },
   { to: '/timetable', label: 'nav.timetable' },
   { to: '/imports', label: 'nav.imports' },
+  { to: '/support', label: 'nav.support' },
   { to: '/settings', label: 'nav.configuration' },
   { to: '/design-system', label: 'nav.designSystem' },
 ];

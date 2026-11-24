@@ -13,6 +13,7 @@ export const en = {
   'nav.attendance': 'Attendance',
   'nav.timetable': 'Timetable',
   'nav.imports': 'Imports',
+  'nav.support': 'Support and audit',
   'nav.configuration': 'Settings and rules',
   'nav.designSystem': 'Design system',
   'nav.main': 'Main',
