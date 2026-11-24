@@ -39,10 +39,7 @@ export function TimetablePage({
 }) {
   return (
     <>
-      <PageHeader
-        title="Timetable"
-        lead="Your lessons for the day, and the weekly plan for each class."
-      />
+      <PageHeader title="Timetable" lead="Your lessons for the day, and the weekly plan for each class." />
       <MyDay />
       {canPlan(me) && <Planner campuses={campuses} selectedCampusId={selectedCampusId} />}
     </>
@@ -92,8 +89,12 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
     campusId === null ? null : `/api/v1/campuses/${campusId}/academic-structure`,
   );
   const yearId = structure.status === 'ready' ? (structure.data.year?.id ?? null) : null;
-  const [periods] = useApiResource<TimetablePeriod[]>(campusId ? `/api/v1/campuses/${campusId}/periods` : null);
-  const [teachers] = useApiResource<TeacherOption[]>(campusId ? `/api/v1/campuses/${campusId}/teachers` : null);
+  const [periods] = useApiResource<TimetablePeriod[]>(
+    campusId ? `/api/v1/campuses/${campusId}/periods` : null,
+  );
+  const [teachers] = useApiResource<TeacherOption[]>(
+    campusId ? `/api/v1/campuses/${campusId}/teachers` : null,
+  );
   const [entries, reloadEntries] = useApiResource<TimetableEntry[]>(
     yearId && sectionId ? `/api/v1/academic-years/${yearId}/timetable?sectionId=${sectionId}` : null,
   );
@@ -107,7 +108,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
   const sections =
     structure.status === 'ready'
       ? structure.data.programmes.flatMap((p) =>
-          p.grades.flatMap((g) => g.sections.map((s) => ({ id: s.id, label: `${g.name} ${s.code}`, programmeId: p.id }))),
+          p.grades.flatMap((g) =>
+            g.sections.map((s) => ({ id: s.id, label: `${g.name} ${s.code}`, programmeId: p.id })),
+          ),
         )
       : [];
   const programme =
@@ -151,9 +154,10 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
     );
   }
 
-  const cell = (day: number, ordinal: number) => entries.status === 'ready'
-    ? entries.data.find((x) => x.day === day && x.periodOrdinal === ordinal)
-    : undefined;
+  const cell = (day: number, ordinal: number) =>
+    entries.status === 'ready'
+      ? entries.data.find((x) => x.day === day && x.periodOrdinal === ordinal)
+      : undefined;
 
   return (
     <section aria-labelledby="plan-h">
@@ -162,9 +166,18 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
         {selectedCampusId === null && campuses.length > 1 && (
           <Field label="Campus">
             {(p) => (
-              <select {...p} value={campusId ?? ''} onChange={(e) => { setChosenCampus(e.target.value); setSectionId(''); }}>
+              <select
+                {...p}
+                value={campusId ?? ''}
+                onChange={(e) => {
+                  setChosenCampus(e.target.value);
+                  setSectionId('');
+                }}
+              >
                 {campuses.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             )}
@@ -175,7 +188,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
             <select {...p} value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
               <option value="">Choose a class</option>
               {sections.map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
               ))}
             </select>
           )}
@@ -194,7 +209,14 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
             <Button
               variant="primary"
               busy={busy}
-              onClick={() => void act(`/api/v1/academic-years/${yearId}/timetable/publish`, 'POST', undefined, 'Timetable published.')}
+              onClick={() =>
+                void act(
+                  `/api/v1/academic-years/${yearId}/timetable/publish`,
+                  'POST',
+                  undefined,
+                  'Timetable published.',
+                )
+              }
             >
               Publish timetable
             </Button>
@@ -203,7 +225,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
       )}
       {status.status === 'ready' && status.data.clashes.length > 0 && (
         <div role="alert" className="notice">
-          <p><strong>These clashes must be fixed before publishing:</strong></p>
+          <p>
+            <strong>These clashes must be fixed before publishing:</strong>
+          </p>
           <ul>
             {status.data.clashes.map((c) => (
               <li key={c.text}>{c.text}</li>
@@ -237,7 +261,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
               <tr>
                 <th scope="col">Period</th>
                 {DAYS.map((d) => (
-                  <th key={d} scope="col">{d}</th>
+                  <th key={d} scope="col">
+                    {d}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -247,7 +273,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
                   <th scope="row">
                     {p.label}
                     <br />
-                    <small>{hhmm(p.startsAt)}–{hhmm(p.endsAt)}</small>
+                    <small>
+                      {hhmm(p.startsAt)}–{hhmm(p.endsAt)}
+                    </small>
                   </th>
                   {DAYS.map((d, i) => {
                     const e = cell(i + 1, p.ordinal);
@@ -265,7 +293,14 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
                               variant="quiet"
                               busy={busy}
                               aria-label={`Remove ${e.subjectName} on ${d}, ${p.label}`}
-                              onClick={() => void act(`/api/v1/timetable/entries/${e.id}`, 'DELETE', undefined, 'Lesson removed.')}
+                              onClick={() =>
+                                void act(
+                                  `/api/v1/timetable/entries/${e.id}`,
+                                  'DELETE',
+                                  undefined,
+                                  'Lesson removed.',
+                                )
+                              }
                             >
                               Remove
                             </Button>
@@ -291,7 +326,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
               {(p) => (
                 <select {...p} name="day" defaultValue="1">
                   {DAYS.map((d, i) => (
-                    <option key={d} value={i + 1}>{d}</option>
+                    <option key={d} value={i + 1}>
+                      {d}
+                    </option>
                   ))}
                 </select>
               )}
@@ -300,7 +337,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
               {(p) => (
                 <select {...p} name="period">
                   {lessonPeriods.map((x) => (
-                    <option key={x.id} value={x.id}>{x.label}</option>
+                    <option key={x.id} value={x.id}>
+                      {x.label}
+                    </option>
                   ))}
                 </select>
               )}
@@ -309,7 +348,9 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
               {(p) => (
                 <select {...p} name="subject">
                   {subjects.map((x) => (
-                    <option key={x.id} value={x.id}>{x.name}</option>
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
                   ))}
                 </select>
               )}
@@ -318,17 +359,23 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
               {(p) => (
                 <select {...p} name="teacher">
                   {(teachers.status === 'ready' ? teachers.data : []).map((x) => (
-                    <option key={x.id} value={x.id}>{x.name}</option>
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
                   ))}
                 </select>
               )}
             </Field>
           </div>
-          <Button type="submit" variant="primary" busy={busy}>Add lesson</Button>
+          <Button type="submit" variant="primary" busy={busy}>
+            Add lesson
+          </Button>
         </form>
       )}
 
-      {yearId && <SubstitutionsPanel yearId={yearId} teachers={teachers.status === 'ready' ? teachers.data : []} />}
+      {yearId && (
+        <SubstitutionsPanel yearId={yearId} teachers={teachers.status === 'ready' ? teachers.data : []} />
+      )}
     </section>
   );
 }
@@ -336,17 +383,21 @@ function Planner({ campuses, selectedCampusId }: { campuses: Campus[]; selectedC
 function SubstitutionsPanel({ yearId, teachers }: { yearId: string; teachers: TeacherOption[] }) {
   const session = useApiSession();
   const [date, setDate] = useState(today());
-  const [list, reload] = useApiResource<Substitution[]>(`/api/v1/academic-years/${yearId}/substitutions?from=${date}`);
+  const [list, reload] = useApiResource<Substitution[]>(
+    `/api/v1/academic-years/${yearId}/substitutions?from=${date}`,
+  );
   const [day, reloadDay] = useApiResource<TimetableEntry[]>(`/api/v1/academic-years/${yearId}/timetable`);
   const [entryId, setEntryId] = useState('');
   const [substituteId, setSubstituteId] = useState('');
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const weekday = (new Date(`${date}T00:00:00`).getDay() + 6) % 7 + 1;
+  const weekday = ((new Date(`${date}T00:00:00`).getDay() + 6) % 7) + 1;
   const lessons = day.status === 'ready' ? day.data.filter((e) => e.day === weekday) : [];
   const [free] = useApiResource<TeacherOption[]>(
-    entryId ? `/api/v1/academic-years/${yearId}/substitutions/available?entryId=${entryId}&date=${date}` : null,
+    entryId
+      ? `/api/v1/academic-years/${yearId}/substitutions/available?entryId=${entryId}&date=${date}`
+      : null,
   );
   const choices = free.status === 'ready' ? free.data : teachers;
 
@@ -376,7 +427,17 @@ function SubstitutionsPanel({ yearId, teachers }: { yearId: string; teachers: Te
       <form className="form" onSubmit={submit} aria-label="Arrange a substitute">
         <div className="form form--inline">
           <Field label="Date" required>
-            {(p) => <input {...p} type="date" value={date} onChange={(e) => { setDate(e.target.value); setEntryId(''); }} />}
+            {(p) => (
+              <input
+                {...p}
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setEntryId('');
+                }}
+              />
+            )}
           </Field>
           <Field label="Lesson to cover" required>
             {(p) => (
@@ -395,16 +456,31 @@ function SubstitutionsPanel({ yearId, teachers }: { yearId: string; teachers: Te
               <select {...p} value={substituteId} onChange={(e) => setSubstituteId(e.target.value)}>
                 <option value="">Choose a teacher</option>
                 {choices.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
                 ))}
               </select>
             )}
           </Field>
           <Field label="Reason" required>
-            {(p) => <input {...p} value={reason} onChange={(e) => setReason(e.target.value)} minLength={3} maxLength={200} />}
+            {(p) => (
+              <input
+                {...p}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                minLength={3}
+                maxLength={200}
+              />
+            )}
           </Field>
         </div>
-        <Button type="submit" variant="primary" busy={busy} disabled={!entryId || !substituteId || reason.trim().length < 3}>
+        <Button
+          type="submit"
+          variant="primary"
+          busy={busy}
+          disabled={!entryId || !substituteId || reason.trim().length < 3}
+        >
           Arrange substitute
         </Button>
         {message && <p role="status">{message}</p>}
@@ -413,7 +489,8 @@ function SubstitutionsPanel({ yearId, teachers }: { yearId: string; teachers: Te
         <ul className="plain-list">
           {list.data.map((s) => (
             <li key={s.id}>
-              {s.onDate}, {s.periodLabel}, {s.sectionLabel}: {s.substituteName} covers {s.absentTeacherName} ({s.reason})
+              {s.onDate}, {s.periodLabel}, {s.sectionLabel}: {s.substituteName} covers {s.absentTeacherName} (
+              {s.reason})
             </li>
           ))}
         </ul>

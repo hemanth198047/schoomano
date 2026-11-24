@@ -279,7 +279,14 @@ export interface TimetableStatus {
   status: 'DRAFT' | 'PUBLISHED';
   version: number;
   publishedAt: string | null;
-  clashes: { kind: 'TEACHER' | 'ROOM'; day: number; period: string; resource: string; sections: string[]; text: string }[];
+  clashes: {
+    kind: 'TEACHER' | 'ROOM';
+    day: number;
+    period: string;
+    resource: string;
+    sections: string[];
+    text: string;
+  }[];
 }
 
 export interface TeacherOption {
