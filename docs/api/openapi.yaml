@@ -955,6 +955,191 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/campuses/{campusId}/periods:
+    parameters:
+      - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Timetable]
+      summary: Bell schedule of a campus
+      responses:
+        '200': { description: Periods in order, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Period' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [Timetable]
+      summary: Replace the bell schedule (TIMETABLE_MANAGE)
+      description: Periods must follow the clock, may not overlap and need at least one lesson. Periods that lessons use cannot be removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [periods]
+              properties:
+                periods: { type: array, minItems: 1, maxItems: 12, items: { $ref: '#/components/schemas/Period' } }
+      responses:
+        '200': { description: The new schedule, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Period' } } } } }
+        '400': { description: invalid_schedule, with the list of problems, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/rooms:
+    parameters:
+      - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Timetable]
+      summary: Rooms of a campus
+      responses:
+        '200': { description: Rooms, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Room' } } } } }
+    post:
+      tags: [Timetable]
+      summary: Add a room (TIMETABLE_MANAGE)
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Room' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/rooms/{roomId}/retire:
+    post:
+      tags: [Timetable]
+      summary: Retire a room that no lesson uses
+      parameters:
+        - { name: roomId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: The retired room, content: { application/json: { schema: { $ref: '#/components/schemas/Room' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/teachers:
+    get:
+      tags: [Timetable]
+      summary: Active teachers of the campus
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Teachers, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TeacherOption' } } } } }
+  /api/v1/academic-years/{yearId}/timetable:
+    get:
+      tags: [Timetable]
+      summary: Lessons of the year, optionally for one section, teacher or room
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: sectionId, in: query, schema: { type: string, format: uuid } }
+        - { name: teacherId, in: query, schema: { type: string, format: uuid } }
+        - { name: roomId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Lessons, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TimetableEntry' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/timetable/entries:
+    post:
+      tags: [Timetable]
+      summary: Add a lesson (TIMETABLE_MANAGE)
+      description: A draft may hold clashes. Once published, the database refuses a teacher or room being in two places and the answer says which (409 timetable_rejected).
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sectionId, day, periodId, subjectId, teacherId]
+              properties:
+                sectionId: { type: string, format: uuid }
+                day: { type: integer, minimum: 1, maximum: 7, description: ISO weekday, 1 = Monday }
+                periodId: { type: string, format: uuid }
+                subjectId: { type: string, format: uuid }
+                teacherId: { type: string, format: uuid }
+                roomId: { type: string, format: uuid }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableEntry' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/timetable/entries/{entryId}:
+    parameters:
+      - { name: entryId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [Timetable]
+      summary: Change the subject, teacher or room of a lesson
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableEntry' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Timetable]
+      summary: Remove a lesson
+      responses:
+        '204': { description: Removed }
+  /api/v1/academic-years/{yearId}/timetable/status:
+    get:
+      tags: [Timetable]
+      summary: Draft or published, and the clashes in words
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Status, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableStatus' } } } }
+  /api/v1/academic-years/{yearId}/timetable/publish:
+    post:
+      tags: [Timetable]
+      summary: Publish the timetable (TIMETABLE_MANAGE)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Published, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableStatus' } } } }
+        '409': { description: publish_rejected, with the clashes as problems, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/academic-years/{yearId}/timetable/unpublish:
+    post:
+      tags: [Timetable]
+      summary: Return the timetable to draft (reason required, audited)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 10, maxLength: 500 } } }
+      responses:
+        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/TimetableStatus' } } } }
+  /api/v1/academic-years/{yearId}/substitutions:
+    parameters:
+      - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Timetable]
+      summary: Substitutions between two dates
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Substitutions, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Substitution' } } } } }
+    post:
+      tags: [Timetable]
+      summary: Arrange a substitute for one lesson on one date
+      description: The timetable must be published and the date must fall on the lesson's weekday. The substitute must be a free teacher. Emits an outbox event (delivered by B7).
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Substitution' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/substitutions/available:
+    get:
+      tags: [Timetable]
+      summary: Teachers free to cover a lesson on a date
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: entryId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Teachers, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TeacherOption' } } } } }
+  /api/v1/substitutions/{id}:
+    delete:
+      tags: [Timetable]
+      summary: Cancel a substitution
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Cancelled }
+  /api/v1/timetable/me:
+    get:
+      tags: [Timetable]
+      summary: The signed-in teacher's lessons for a date (default today, school time)
+      description: Own lessons that are not covered by someone else, plus lessons they are covering. Published timetables only.
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Lessons in period order, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MyLesson' } } } } }
+
 components:
   securitySchemes:
     bearer:
@@ -1008,6 +1193,89 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    Period:
+      type: object
+      required: [ordinal, label, startsAt, endsAt, kind]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        ordinal: { type: integer, minimum: 1, maximum: 12 }
+        label: { type: string, maxLength: 40 }
+        startsAt: { type: string, example: "08:30" }
+        endsAt: { type: string, example: "09:15" }
+        kind: { type: string, enum: [LESSON, BREAK] }
+    Room:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        capacity: { type: integer, nullable: true }
+        status: { type: string, enum: [ACTIVE, RETIRED] }
+    TeacherOption:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    TimetableEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sectionId: { type: string, format: uuid }
+        sectionLabel: { type: string }
+        day: { type: integer }
+        periodId: { type: string, format: uuid }
+        periodOrdinal: { type: integer }
+        periodLabel: { type: string }
+        subjectId: { type: string, format: uuid }
+        subjectName: { type: string }
+        teacherId: { type: string, format: uuid }
+        teacherName: { type: string }
+        roomId: { type: string, format: uuid, nullable: true }
+        roomName: { type: string, nullable: true }
+    TimetableStatus:
+      type: object
+      properties:
+        status: { type: string, enum: [DRAFT, PUBLISHED] }
+        version: { type: integer }
+        publishedAt: { type: string, format: date-time, nullable: true }
+        clashes:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [TEACHER, ROOM] }
+              day: { type: integer }
+              period: { type: string }
+              resource: { type: string }
+              sections: { type: array, items: { type: string } }
+              text: { type: string }
+    Substitution:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        entryId: { type: string, format: uuid }
+        onDate: { type: string, format: date }
+        sectionLabel: { type: string }
+        periodOrdinal: { type: integer }
+        periodLabel: { type: string }
+        subjectName: { type: string }
+        absentTeacherId: { type: string, format: uuid }
+        absentTeacherName: { type: string }
+        substituteId: { type: string, format: uuid }
+        substituteName: { type: string }
+        reason: { type: string }
+    MyLesson:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        periodOrdinal: { type: integer }
+        periodLabel: { type: string }
+        startsAt: { type: string }
+        endsAt: { type: string }
+        sectionLabel: { type: string }
+        subjectName: { type: string }
+        roomName: { type: string, nullable: true }
+        coverFor: { type: string, nullable: true, description: Name of the teacher being covered, when this is a substitution }
     TokenResponse:
       type: object
       required: [tokenType, accessToken, expiresIn, refreshToken, refreshExpiresIn]
@@ -1026,7 +1294,7 @@ components:
         detail: { type: string }
         code:
           type: string
-          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected, invalid_code, invalid_code_format, otp_locked, otp_resend_too_soon, otp_rate_limited, invalid_refresh_token, sign_in_not_configured, sms_unavailable, reason_required, mfa_required]
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected, invalid_code, invalid_code_format, otp_locked, otp_resend_too_soon, otp_rate_limited, invalid_refresh_token, sign_in_not_configured, sms_unavailable, reason_required, mfa_required, invalid_schedule, period_in_use, room_in_use, timetable_rejected, wrong_day]
         correlationId: { type: string }
         problems:
           type: array

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import type { Campus, Me } from './api/types';
 import { useSession } from './app/session';
@@ -13,6 +14,9 @@ import { SettingsPage } from './pages/SettingsPage';
 import { StudentProfilePage, StudentsPage } from './pages/StudentsPage';
 import { SignInPage } from './pages/SignInPage';
 import { TodayPage } from './pages/TodayPage';
+
+// Loaded on first visit so the first screen stays light.
+const TimetablePage = lazy(() => import('./pages/TimetablePage').then((m) => ({ default: m.TimetablePage })));
 
 export function App() {
   const { session } = useSession();
@@ -78,6 +82,18 @@ function SignedIn() {
               campuses={campuses.status === 'ready' ? campuses.data : []}
               selectedCampusId={selectedCampusId}
             />
+          }
+        />
+        <Route
+          path="/timetable"
+          element={
+            <Suspense fallback={<LoadingState label="Opening the timetable" />}>
+              <TimetablePage
+                me={me.data}
+                campuses={campuses.status === 'ready' ? campuses.data : []}
+                selectedCampusId={selectedCampusId}
+              />
+            </Suspense>
           }
         />
         <Route path="/settings" element={<SettingsPage me={me.data} />} />

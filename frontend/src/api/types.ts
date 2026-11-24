@@ -249,3 +249,67 @@ export interface StudentProfile {
   households: string[];
   yourCapabilities: GuardianCapability[];
 }
+
+export interface TimetablePeriod {
+  id: string;
+  ordinal: number;
+  label: string;
+  startsAt: string;
+  endsAt: string;
+  kind: 'LESSON' | 'BREAK';
+}
+
+export interface TimetableEntry {
+  id: string;
+  sectionId: string;
+  sectionLabel: string;
+  day: number;
+  periodId: string;
+  periodOrdinal: number;
+  periodLabel: string;
+  subjectId: string;
+  subjectName: string;
+  teacherId: string;
+  teacherName: string;
+  roomId: string | null;
+  roomName: string | null;
+}
+
+export interface TimetableStatus {
+  status: 'DRAFT' | 'PUBLISHED';
+  version: number;
+  publishedAt: string | null;
+  clashes: { kind: 'TEACHER' | 'ROOM'; day: number; period: string; resource: string; sections: string[]; text: string }[];
+}
+
+export interface TeacherOption {
+  id: string;
+  name: string;
+}
+
+export interface MyLesson {
+  date: string;
+  periodOrdinal: number;
+  periodLabel: string;
+  startsAt: string;
+  endsAt: string;
+  sectionLabel: string;
+  subjectName: string;
+  roomName: string | null;
+  coverFor: string | null;
+}
+
+export interface Substitution {
+  id: string;
+  entryId: string;
+  onDate: string;
+  sectionLabel: string;
+  periodOrdinal: number;
+  periodLabel: string;
+  subjectName: string;
+  absentTeacherId: string;
+  absentTeacherName: string;
+  substituteId: string;
+  substituteName: string;
+  reason: string;
+}

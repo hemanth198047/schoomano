@@ -19,6 +19,8 @@ public enum Permission {
     ATTENDANCE_READ(false),
     ATTENDANCE_MARK(false),
     ATTENDANCE_CORRECT(true),
+    TIMETABLE_READ(false),
+    TIMETABLE_MANAGE(true),
     FEE_READ(false),
     FEE_PAY(true),
     FEE_MANAGE(true),

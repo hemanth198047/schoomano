@@ -8,6 +8,7 @@ export const en = {
   'nav.campuses': 'Campuses',
   'nav.students': 'Students',
   'nav.academic': 'Academic structure',
+  'nav.timetable': 'Timetable',
   'nav.imports': 'Imports',
   'nav.configuration': 'Settings and rules',
   'nav.designSystem': 'Design system',

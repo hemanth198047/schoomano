@@ -46,7 +46,7 @@ Nothing below claims production readiness. No module has been used by a real sch
 | M02 Admissions CRM | P1 | Not started | `student_enrollment` table exists as a dependency only |
 | M03 Student information | P0 | **Implemented (B3)** | Student list and profile, create, edit with old-system lock, placement, households, guardians with capabilities and reasons. Missing: documents, medical flags (Phase 2 M12), sibling/household admin screens, merge of duplicates |
 | M04 Academic structure and calendar | P0 | **Implemented (B1 done)** | Per-programme grades, subjects (retire, never delete), terms (no overlap, inside year), sections, campus calendar, academic-year lifecycle (planned → active → closed, one active per campus), grade scales as effective-dated config per programme, rollover preview and one-time committed rollover; all writes audited. Open: which state board (D2) for the real State grade scale |
-| M05 Scheduling and substitutions | P0 | Not started | B5 |
+| M05 Scheduling and substitutions | P0 | **Implemented (B5), CI pending** | Bell schedule per campus (no overlaps, order follows the clock), rooms (retire, never delete), weekly lessons per section, clashes listed in words and blocking publish, database triggers that stop teacher/room double-booking once published, substitutions on a published timetable for free teachers only (outbox event for B7 to deliver), teacher's own day with covered lessons. Verified locally: 8 SQL tests (mutation-checked), 6 domain tests, 4 web tests. Spring controller and `TimetableApiIT` have not been compiled outside CI. Missing: room clashes UI, bulk timetable import, notifying parents (B7), period swaps between teachers, Saturday-only schedules per grade |
 | M06 Attendance | P0 | Not started | Config key `attendance.late_after_minutes` exists; B6 |
 | M07 Curriculum planning | P1 | Not started | |
 | M08 Learning delivery | P1 | Not started | |
@@ -84,7 +84,7 @@ Nothing below claims production readiness. No module has been used by a real sch
 7. `config_version.value` is checked server-side only for known keys (`attendance.late_after_minutes`, `assessment.grade_scale`, `flag.*`); other keys accept any JSON.
 8. B1 web offers add/remove for terms and add for the rest; renaming grades, retiring subjects and changing section capacity exist in the API but not yet as web controls. Rollover never edits the source year, so final-grade students stay ENROLLED there until the year is closed.
 9. Import file contents are kept in `import_batch.file_table` to re-check plans at commit (retention class TRANSIENT; a purge job is not built yet).
-10. The web bundle is 100.5 kB gzip of the 120 kB budget (D8); route-level code splitting is due before B5.
+10. The web bundle is 100.7 kB gzip of the 120 kB budget (D8). The Timetable page loads on demand (3 kB); other pages should follow the same pattern as they grow.
 11. Fixed earlier: wide tables made the whole page scroll sideways on phones (grid column blowout); the dev backend now runs a copy of the jar from `.run/`, so `mvn verify` can no longer replace the jar under a running JVM (seen here as a hung API).
 12. **B4 API: CI compiled it and 41 of 42 integration tests passed on the first run; the one failure was a test bug (fixed).
 13. Sign-in codes are only "sent" to the backend log (console adapter, dev only). A real Indian SMS provider needs TRAI DLT sender and template approval, which can take weeks (ADR 0009); until then no parent can sign in outside local development.
