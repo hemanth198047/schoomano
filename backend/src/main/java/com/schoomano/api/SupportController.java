@@ -17,7 +17,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -106,12 +105,11 @@ public class SupportController {
     public GrantView approve(RequestContext ctx, @Valid @RequestBody GrantRequest req) {
         return tenantTx.run(ctx.tenant(), jdbc -> {
             require(jdbc, ctx, Permission.SUPPORT_GRANT_MANAGE, "support_grant");
-            OffsetDateTime now = OffsetDateTime.now();
+            // The database's clock decides when access starts and ends, the same clock that later checks it.
             UUID id = jdbc.queryForObject("""
                 insert into support_access_grant (tenant_id, support_user_ref, approved_by, purpose, starts_at, expires_at)
-                values (?, ?, ?, ?, ?, ?) returning id
-                """, UUID.class, ctx.tenant().value(), req.supportUserRef().trim(), ctx.actor().personId(), req.purpose().trim(), now,
-                now.plus(req.hours(), ChronoUnit.HOURS));
+                values (?, ?, ?, ?, now(), now() + make_interval(hours => ?)) returning id
+                """, UUID.class, ctx.tenant().value(), req.supportUserRef().trim(), ctx.actor().personId(), req.purpose().trim(), req.hours());
             audit.write(jdbc, ctx, "support.grant_approved", "support_grant", id.toString(), "SUCCESS", req.purpose().trim(),
                 Map.of("supportUserRef", req.supportUserRef().trim(), "hours", req.hours()));
             return jdbc.queryForObject(GRANT_SQL + " where g.id = ?", SupportController::grant, id);
