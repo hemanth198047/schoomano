@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useSession } from '../app/session';
 import { Button } from '../components/Button';
+import { PhoneSignIn } from './PhoneSignIn';
 
 const devUsers = [
   { subject: 'dev-asha', name: 'Asha', role: 'Group administrator for the whole school group' },
@@ -43,10 +44,13 @@ export function SignInPage() {
           </>
         ) : (
           <p className="signin__lead">
-            School sign-in (OIDC) is not configured for this environment yet. Set VITE_DEV_AUTH=true for local
+            Staff sign-in (OIDC) is not configured for this environment yet. Set VITE_DEV_AUTH=true for local
             development with synthetic accounts.
           </p>
         )}
+        <div className="signin__section">
+          <PhoneSignIn />
+        </div>
       </div>
     </main>
   );

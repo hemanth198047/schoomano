@@ -728,6 +728,17 @@ code {
   border-bottom: 1px solid var(--color-rule);
 }
 
+.signin__section {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-rule);
+}
+
+.signin__subtitle {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
 .signin__name {
   font-weight: var(--font-weight-bold);
   margin: 0;

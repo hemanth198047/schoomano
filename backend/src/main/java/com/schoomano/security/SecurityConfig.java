@@ -9,7 +9,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -21,7 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain api(HttpSecurity http, AppProperties props, Environment env) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, AppProperties props, Environment env, SignInService signIn) throws Exception {
         http
             // Stateless bearer-token API: no cookies, so CSRF tokens do not apply.
             .csrf(csrf -> csrf.disable())
@@ -29,8 +31,13 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info").permitAll()
+                // Parent sign-in happens before there is a session (ADR 0009).
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/otp/request", "/api/v1/auth/otp/verify",
+                    "/api/v1/auth/token/refresh").permitAll()
                 .anyRequest().authenticated())
-            .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+            .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+            // Parent sessions ("Bearer smo_...") from the phone OTP; works with both staff sign-in modes below.
+            .addFilterBefore(new SessionTokenFilter(signIn), UsernamePasswordAuthenticationFilter.class);
 
         if (props.auth() != null && props.auth().devMode()) {
             if (Arrays.asList(env.getActiveProfiles()).contains("prod")) {
@@ -40,7 +47,15 @@ public class SecurityConfig {
             http.httpBasic(b -> b.disable());
         } else {
             // Production: OIDC access tokens. Set SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI.
-            http.oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()));
+            // A parent session token is not a JWT: leave it to SessionTokenFilter instead of failing it as one.
+            var jwtTokens = new DefaultBearerTokenResolver();
+            http.oauth2ResourceServer(o -> o
+                .bearerTokenResolver(request -> {
+                    String header = request.getHeader("Authorization");
+                    return header != null && header.startsWith("Bearer " + SessionTokens.ACCESS_PREFIX)
+                        ? null : jwtTokens.resolve(request);
+                })
+                .jwt(Customizer.withDefaults()));
         }
         return http.build();
     }

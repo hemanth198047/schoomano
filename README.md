@@ -46,6 +46,8 @@ Then open **http://localhost:8081** and pick a synthetic user: Asha (school admi
 
 ## Script reference
 
+**Parent phone sign-in (local):** below the synthetic users, enter a seeded guardian's number (Meera `98000 00010`, Karan `98000 00011`). In local development the "SMS" is written to the backend log (`scripts/logs`), where you will find the 6-digit code. Real deployments need `SCHOOMANO_OTP_PEPPER` and an SMS provider (see ADR 0009).
+
 Options work in either style on every platform (`--dev` or `-Dev`).
 
 | Command (`scripts/…` .sh / .cmd / .ps1) | What it does |

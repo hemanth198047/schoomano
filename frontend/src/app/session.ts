@@ -1,9 +1,12 @@
 import { createContext, useContext } from 'react';
 import type { ApiSession } from '../api/client';
+import type { TokenResponse } from '../api/auth';
 
 export interface SessionState {
   session: ApiSession | null;
   signIn: (token: string, tenantSlug?: string) => void;
+  /** Parent session from the phone code: renews itself before the access token runs out. */
+  signInWithTokens: (tokens: TokenResponse) => void;
   signOut: () => void;
   selectedCampusId: string | null;
   setSelectedCampusId: (id: string | null) => void;

@@ -3,7 +3,7 @@ info:
   title: Schoomano API
   version: 0.1.0
   description: |
-    Stage A + B1 (academic structure) contract. Every endpoint authorizes on the server using the authenticated identity.
+    Stage A + B1 (academic structure) + B4 (sign-in) contract. Every endpoint authorizes on the server using the authenticated identity.
     The tenant is resolved from the identity, never accepted from the client; `X-Schoomano-Tenant`
     only selects among schools the identity already belongs to.
 
@@ -818,12 +818,149 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/auth/otp/request:
+    post:
+      summary: "Parent sign-in step 1: text a 6-digit code to a mobile number. Public. Always 202 for an acceptable request, whether or not the number is on a guardian record (nothing reveals which); unknown numbers get no SMS but are limited and timed identically. 429 when asked again within 30 s (otp_resend_too_soon) or over the caps: 5/hour and 10/day per number, 20/hour per client address (otp_rate_limited)."
+      operationId: requestOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, description: "Indian mobile as typed; normalised to +91XXXXXXXXXX", examples: ["98450 12345"] }
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resendAfterSeconds]
+                properties:
+                  resendAfterSeconds: { type: integer, examples: [30] }
+        '400': { $ref: '#/components/responses/Problem' }
+        '429':
+          description: otp_resend_too_soon or otp_rate_limited; `retryAfterSeconds` says how long to wait
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/auth/otp/verify:
+    post:
+      summary: "Parent sign-in step 2: exchange the code for a session. Public. Codes work once for 5 minutes; 5 wrong guesses lock the code (otp_locked). A wrong, expired, used or never-issued code all answer 401 invalid_code. The session carries guardian rights only, never staff roles."
+      operationId: verifyOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code: { type: string, description: "6 digits; spaces tolerated" }
+                deviceLabel: { type: string, maxLength: 200, description: "Shown to the school office in the guardian's session list" }
+      responses:
+        '200':
+          description: Session started
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/auth/token/refresh:
+    post:
+      summary: "Exchange a refresh token for a new access and refresh token (rotation). Public. A refresh token that was already replaced means it leaked: the whole session is revoked and this answers 401 invalid_refresh_token."
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: New tokens; the previous refresh token no longer works
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/auth/logout:
+    post:
+      summary: End the session of the access token presented
+      operationId: logout
+      responses:
+        '204': { description: Session ended }
+        '401': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/guardians/{guardianId}/sessions:
+    get:
+      summary: "Where a guardian is signed in (device label, first and last seen). PERSON_MANAGE for one of their children; otherwise 404."
+      operationId: listGuardianSessions
+      parameters:
+        - { name: guardianId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Open sessions, most recently used first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    deviceLabel: { type: [string, 'null'] }
+                    signedInAt: { type: string, format: date-time }
+                    lastSeenAt: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/guardians/{guardianId}/sessions/revoke:
+    post:
+      summary: "End every open session of a guardian's number, with a reason (min 10 characters, kept in the audit trail). Effective on the next request."
+      operationId: revokeGuardianSessions
+      parameters:
+        - { name: guardianId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '200':
+          description: How many sessions were ended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: integer }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
       type: http
       scheme: bearer
-      description: OIDC access token. Local development only accepts `dev:<subject>` for synthetic seed users.
+      description: OIDC access token for staff, or an opaque `smo_...` session token for parents who signed in with a phone code (see /api/v1/auth). Local development only accepts `dev:<subject>` for synthetic seed users.
 
   parameters:
     TenantSelector:
@@ -871,6 +1008,15 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    TokenResponse:
+      type: object
+      required: [tokenType, accessToken, expiresIn, refreshToken, refreshExpiresIn]
+      properties:
+        tokenType: { type: string, enum: [Bearer] }
+        accessToken: { type: string, description: "Opaque; stored hashed on the server. Lives 30 minutes." }
+        expiresIn: { type: integer, description: seconds }
+        refreshToken: { type: string, description: "Opaque, single use (rotates on every refresh). Lives 30 days." }
+        refreshExpiresIn: { type: integer, description: seconds }
     Problem:
       type: object
       required: [status, code, correlationId]
@@ -880,7 +1026,7 @@ components:
         detail: { type: string }
         code:
           type: string
-          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected]
+          examples: [unauthenticated, forbidden, not_found, no_membership, tenant_selection_required, validation_failed, conflict, publish_rejected, invalid_value, term_rejected, wrong_campus, outside_year, stale_preview, not_latest, not_validated, unreadable_file, file_too_large, owned_by_old_system, invalid_mobile, mobile_in_use, already_linked, relationship_rejected, invalid_code, invalid_code_format, otp_locked, otp_resend_too_soon, otp_rate_limited, invalid_refresh_token, sign_in_not_configured, sms_unavailable, reason_required, mfa_required]
         correlationId: { type: string }
         problems:
           type: array

@@ -50,6 +50,7 @@ jobs:
           for run in 1 2; do for f in backend/db/seed/*.sql; do $P -f "$f"; done; done
           $P -f backend/db/tests/rls_and_invariants_test.sql
           $P -f backend/db/tests/academic_structure_test.sql
+          $P -f backend/db/tests/sign_in_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

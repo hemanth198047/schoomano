@@ -32,6 +32,15 @@ public record Actor(UUID personId, TenantId tenant, Kind kind, List<RoleGrant> g
         return new Actor(personId, tenant, Kind.USER, grants, links, List.of(), Optional.empty());
     }
 
+    /**
+     * The same person as seen through a phone-OTP session: only guardian links, never staff roles or break-glass.
+     * Staff roles are only available through the staff sign-in (OIDC with a second factor for admin and finance
+     * roles), so a teacher who is also a parent cannot reach staff powers with just a code sent to her phone.
+     */
+    public Actor guardianOnly() {
+        return new Actor(personId, tenant, kind, List.of(), guardianLinks, List.of(), support);
+    }
+
     public Actor withBreakGlass(BreakGlassGrant grant) {
         var all = new java.util.ArrayList<>(breakGlass);
         all.add(grant);

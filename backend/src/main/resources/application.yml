@@ -34,6 +34,11 @@ schoomano:
     # Dev tokens ("Bearer dev:<subject>") are ONLY for local development with synthetic data.
     # Startup fails if dev mode is combined with the 'prod' profile.
     dev-mode: ${SCHOOMANO_AUTH_DEV_MODE:false}
+    # Secret mixed into stored sign-in code hashes (ADR 0009). Required outside dev mode; at least 16 characters.
+    otp-pepper: ${SCHOOMANO_OTP_PEPPER:}
+  sms:
+    # "console" writes codes to the backend log: local development only (refused with the prod profile).
+    provider: ${SCHOOMANO_SMS_PROVIDER:}
   cors:
     # Only needed if the web app calls the API from another origin; by default it is same-origin via a proxy.
     allowed-origins: ${SCHOOMANO_CORS_ORIGINS:http://localhost:5173}

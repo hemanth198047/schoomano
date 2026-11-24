@@ -1,5 +1,7 @@
 package com.schoomano.security;
 
+import com.schoomano.domain.auth.MfaPolicy;
+import com.schoomano.domain.access.RoleGrant;
 import com.schoomano.platform.ApiException;
 import com.schoomano.platform.RequestContext;
 import com.schoomano.platform.TenantTx;
@@ -25,6 +27,8 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 public class RequestContextResolver implements HandlerMethodArgumentResolver {
 
     public static final String TENANT_HEADER = "X-Schoomano-Tenant";
+    /** Identity issuer for parents who signed in with a phone code (see V7__sign_in.sql). */
+    static final String PHONE_ISSUER = "phone";
 
     private final TenantTx tenantTx;
     private final ActorLoader actorLoader;
@@ -65,7 +69,24 @@ public class RequestContextResolver implements HandlerMethodArgumentResolver {
         }
         TenantId tenant = new TenantId(m.tenantId());
         var actor = tenantTx.run(tenant, jdbc -> actorLoader.load(jdbc, tenant, m.personId()));
+        if (PHONE_ISSUER.equals(who.issuer())) {
+            // A code sent to a phone proves a parent, not a staff member: no staff roles through this door.
+            actor = actor.guardianOnly();
+        } else {
+            requireSecondFactorWhereNeeded(actor.grants().stream().map(RoleGrant::roleKey).toList(),
+                SecurityContextHolder.getContext().getAuthentication());
+        }
         return new RequestContext(actor, tenant, m.slug(), m.name());
+    }
+
+    /** Admin and finance roles must have signed in with a second factor at the identity provider (amr claim). */
+    private static void requireSecondFactorWhereNeeded(List<String> roleKeys, Authentication auth) {
+        // Only OIDC tokens say how the person signed in; dev tokens exist for local synthetic data only.
+        if (auth != null && auth.getPrincipal() instanceof Jwt jwt && MfaPolicy.requiresMfa(roleKeys)
+            && !MfaPolicy.satisfied(jwt.getClaimAsStringList("amr"))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "mfa_required",
+                "Your role needs a second sign-in step. Sign in again and complete the authenticator check.");
+        }
     }
 
     private static ExternalIdentity identity(Authentication auth) {

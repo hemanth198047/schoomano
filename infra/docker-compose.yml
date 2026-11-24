@@ -40,6 +40,10 @@ services:
       SCHOOMANO_DB_OWNER_PASSWORD: ${SCHOOMANO_DB_OWNER_PASSWORD}
       # Local only. Never enable on a shared environment.
       SCHOOMANO_AUTH_DEV_MODE: ${SCHOOMANO_AUTH_DEV_MODE:-false}
+      # Parent phone sign-in (ADR 0009). In dev mode the backend supplies its own pepper and logs codes to the console;
+      # a real deployment must set both a secret pepper (16+ characters) and an SMS provider.
+      SCHOOMANO_OTP_PEPPER: ${SCHOOMANO_OTP_PEPPER:-}
+      SCHOOMANO_SMS_PROVIDER: ${SCHOOMANO_SMS_PROVIDER:-}
     ports:
       - "127.0.0.1:${SCHOOMANO_API_PORT:-8080}:8080"
     restart: unless-stopped
