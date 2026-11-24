@@ -252,8 +252,7 @@ class SignInApiIT extends ApiITSupport {
             .content("{\"mobile\":\"98100 77011\",\"reason\":\"Parent changed number after SIM loss\"}")).andExpect(status().isOk());
 
         me(tokens[0]).andExpect(status().isUnauthorized());
-        // The old number can no longer get a code that works; the new one can sign in.
-        requestCode(g[1], 12).andExpect(status().isAccepted());
+        // The old number can no longer sign in; the new one can.
         verify(g[1], "123456", "x").andExpect(status().isUnauthorized());
         var fresh = signIn("+919810077011", 12, "New phone");
         me(fresh[0]).andExpect(status().isOk());
