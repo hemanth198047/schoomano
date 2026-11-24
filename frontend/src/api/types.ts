@@ -320,3 +320,48 @@ export interface Substitution {
   substituteName: string;
   reason: string;
 }
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'LEAVE';
+
+export interface AttendanceRosterRow {
+  studentId: string;
+  schoolRef: string;
+  name: string;
+  status: AttendanceStatus | null;
+  version: number | null;
+}
+
+export interface AttendanceRoster {
+  sectionId: string;
+  sectionLabel: string;
+  date: string;
+  students: AttendanceRosterRow[];
+  openConflicts: number;
+}
+
+export interface AttendanceMarkResult {
+  studentId: string;
+  outcome: 'CREATED' | 'UPDATED' | 'UNCHANGED' | 'CONFLICT' | 'REJECTED';
+  status: AttendanceStatus | null;
+  version: number | null;
+  message: string | null;
+}
+
+export interface AttendanceBatchResult {
+  results: AttendanceMarkResult[];
+  conflicts: number;
+  replayed: boolean;
+}
+
+export interface AttendanceConflict {
+  id: string;
+  studentId: string;
+  studentName: string;
+  sectionLabel: string;
+  date: string;
+  currentStatus: AttendanceStatus;
+  currentVersion: number;
+  attemptedStatus: AttendanceStatus;
+  attemptedBy: string;
+  attemptedMarkedAt: string;
+}

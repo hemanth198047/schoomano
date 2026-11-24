@@ -16,6 +16,9 @@ import { SignInPage } from './pages/SignInPage';
 import { TodayPage } from './pages/TodayPage';
 
 // Loaded on first visit so the first screen stays light.
+const AttendancePage = lazy(() =>
+  import('./pages/AttendancePage').then((m) => ({ default: m.AttendancePage })),
+);
 const TimetablePage = lazy(() => import('./pages/TimetablePage').then((m) => ({ default: m.TimetablePage })));
 
 export function App() {
@@ -82,6 +85,18 @@ function SignedIn() {
               campuses={campuses.status === 'ready' ? campuses.data : []}
               selectedCampusId={selectedCampusId}
             />
+          }
+        />
+        <Route
+          path="/attendance"
+          element={
+            <Suspense fallback={<LoadingState label="Opening attendance" />}>
+              <AttendancePage
+                me={me.data}
+                campuses={campuses.status === 'ready' ? campuses.data : []}
+                selectedCampusId={selectedCampusId}
+              />
+            </Suspense>
           }
         />
         <Route
