@@ -9,4 +9,12 @@ public interface SmsSender {
 
     /** @param phoneE164 e.g. +919845012345 */
     void sendOtp(String phoneE164, String code);
+
+    /**
+     * Sends a short notice text. Texts are written to be safe on a lock screen: they never name a child or carry
+     * details, only point to the app. A real adapter must use a TRAI DLT-approved template.
+     */
+    default void sendText(String phoneE164, String text) {
+        throw new UnsupportedOperationException("This SMS adapter cannot send notices");
+    }
 }

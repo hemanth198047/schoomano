@@ -28,4 +28,10 @@ public class ConsoleSmsSender implements SmsSender {
         String masked = "+91 ******" + phoneE164.substring(phoneE164.length() - 4);
         log.warn("[console SMS, local only] sign-in code for {} is {}", masked, code);
     }
+
+    @Override
+    public void sendText(String phoneE164, String text) {
+        String masked = "+91 ******" + phoneE164.substring(phoneE164.length() - 4);
+        log.warn("[console SMS, local only] to {}: {}", masked, text);
+    }
 }

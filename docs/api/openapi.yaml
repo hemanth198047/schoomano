@@ -1242,6 +1242,53 @@ paths:
         '200': { description: Resolved, content: { application/json: { schema: { type: object, properties: { id: { type: string, format: uuid }, resolution: { type: string, enum: [KEPT_CURRENT, USED_ATTEMPT] } } } } } }
         '409': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/campuses/{campusId}/notices:
+    parameters:
+      - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Notices]
+      summary: Write an announcement to one class, or to the whole campus (NOTICE_SEND)
+      description: |
+        Teachers must name a class; only office roles (group admin, campus admin, principal) may write to a whole campus.
+        The database decides who is reached: guardians with an ACTIVE or RESTRICTED relationship that allows notices
+        (a restricted guardian is notices-only). Suspended or ended relationships receive nothing. Everyone reached gets
+        an in-app notice; SMS follows, never between 21:00 and 07:00 India time, and carries only the title.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body]
+              properties:
+                title: { type: string, minLength: 3, maxLength: 120 }
+                body: { type: string, maxLength: 2000 }
+                sectionId: { type: string, format: uuid, nullable: true }
+      responses:
+        '201': { description: Sent, content: { application/json: { schema: { type: object, properties: { id: { type: string, format: uuid }, people: { type: integer } } } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    get:
+      tags: [Notices]
+      summary: Recently sent announcements with delivery counts (NOTICE_SEND)
+      responses:
+        '200': { description: Sent notices, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SentNotice' } } } } }
+  /api/v1/notices/mine:
+    get:
+      tags: [Notices]
+      summary: The signed-in person's own notices, newest first
+      responses:
+        '200': { description: Inbox, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/InboxItem' } } } } }
+  /api/v1/notices/{deliveryId}/read:
+    post:
+      tags: [Notices]
+      summary: Mark one of your own notices as read
+      parameters:
+        - { name: deliveryId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Marked }
+        '404': { description: Not your notice, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+
 components:
   securitySchemes:
     bearer:
@@ -1295,6 +1342,27 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    SentNotice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        audience: { type: string, description: Class label or "Whole campus" }
+        createdAt: { type: string, format: date-time }
+        people: { type: integer }
+        smsSent: { type: integer }
+        smsWaiting: { type: integer }
+        smsFailed: { type: integer }
+        smsSkipped: { type: integer, description: People with no mobile number }
+    InboxItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: The delivery id, used to mark it read }
+        kind: { type: string, enum: [ANNOUNCEMENT, ATTENDANCE, SUBSTITUTION] }
+        title: { type: string }
+        body: { type: string }
+        receivedAt: { type: string, format: date-time }
+        read: { type: boolean }
     AttendanceRoster:
       type: object
       properties:

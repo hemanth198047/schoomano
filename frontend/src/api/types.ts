@@ -365,3 +365,24 @@ export interface AttendanceConflict {
   attemptedBy: string;
   attemptedMarkedAt: string;
 }
+
+export interface InboxItem {
+  id: string;
+  kind: 'ANNOUNCEMENT' | 'ATTENDANCE' | 'SUBSTITUTION';
+  title: string;
+  body: string;
+  receivedAt: string;
+  read: boolean;
+}
+
+export interface SentNotice {
+  id: string;
+  title: string;
+  audience: string;
+  createdAt: string;
+  people: number;
+  smsSent: number;
+  smsWaiting: number;
+  smsFailed: number;
+  smsSkipped: number;
+}
