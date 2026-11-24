@@ -40,14 +40,14 @@ class FeeApiIT extends ApiITSupport {
         return "key-" + UUID.randomUUID();
     }
 
-    /** Fiona in Grade 5 B, a finance officer, a guardian who may pay and a guardian who may not. */
+    /** Fiona in Grade 7 A, a finance officer, a guardian who may pay and a guardian who may not. */
     private static void fixture() throws Exception {
         ownerUpdate("""
             insert into person (id, tenant_id, school_ref, given_name, family_name) values
               ('13000000-0000-4000-8000-000000000801', '%1$s', 'STU-IT-801', 'Fiona', 'Synthetic') on conflict (id) do nothing;
             insert into student_enrollment (tenant_id, student_person_id, campus_id, academic_year_id, programme_id, class_section_id)
               select '%1$s', '13000000-0000-4000-8000-000000000801', '12000000-0000-4000-8000-000000000001',
-                     '15000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000001', md5('section-CBSE-K12-5-B')::uuid
+                     '15000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000001', md5('section-CBSE-K12-7-A')::uuid
                where not exists (select 1 from student_enrollment where student_person_id = '13000000-0000-4000-8000-000000000801');
             insert into person (id, tenant_id, school_ref, given_name, family_name) values
               ('13000000-0000-4000-8000-000000000802', '%1$s', 'STF-IT-802', 'Finn', 'Finance') on conflict (id) do nothing;
@@ -106,7 +106,7 @@ class FeeApiIT extends ApiITSupport {
     @Test
     void bulkIssuingTwiceDoesNotDuplicate() throws Exception {
         fixture();
-        String section = ownerString("select md5('section-CBSE-K12-5-B')::uuid::text");
+        String section = ownerString("select md5('section-CBSE-K12-7-A')::uuid::text");
         String url = "/api/v1/academic-years/" + NORTH_YEAR + "/invoices/bulk";
         String body = "{\"sectionId\":\"" + section + "\",\"dueOn\":\"2099-06-30\",\"batchKey\":\"term-1-" + UUID.randomUUID().toString().substring(0, 8)
             + "\",\"lines\":[{\"description\":\"Term 1\",\"amountPaise\":1000000}]}";
@@ -122,7 +122,8 @@ class FeeApiIT extends ApiITSupport {
         String inv = issue("[{\"description\":\"Tuition\",\"amountPaise\":100000}]");
         String url = "/api/v1/invoices/" + inv + "/payments/offline";
         mvc.perform(json(post(url), "dev-fin802", "{\"amountPaise\":40000,\"method\":\"CASH\"}")).andExpect(status().isBadRequest());
-        mvc.perform(json(post(url), "dev-g811", "{\"amountPaise\":40000,\"method\":\"CASH\"}").header("Idempotency-Key", key())).andExpect(status().isNotFound());
+        // A paying guardian can see the invoice but may not record counter payments.
+        mvc.perform(json(post(url), "dev-g811", "{\"amountPaise\":40000,\"method\":\"CASH\"}").header("Idempotency-Key", key())).andExpect(status().isForbidden());
         mvc.perform(json(post(url), "dev-fin802", "{\"amountPaise\":40000,\"method\":\"CHEQUE\"}").header("Idempotency-Key", key())).andExpect(status().isBadRequest());
 
         String k = key();
