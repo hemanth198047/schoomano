@@ -34,6 +34,8 @@ public class SecurityConfig {
                 // Parent sign-in happens before there is a session (ADR 0009).
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/otp/request", "/api/v1/auth/otp/verify",
                     "/api/v1/auth/token/refresh").permitAll()
+                // The payment provider calls this with no session; the body signature is the credential.
+                .requestMatchers(HttpMethod.POST, "/api/v1/payments/webhook").permitAll()
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             // Parent sessions ("Bearer smo_...") from the phone OTP; works with both staff sign-in modes below.

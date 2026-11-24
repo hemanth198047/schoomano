@@ -54,6 +54,7 @@ jobs:
           $P -f backend/db/tests/timetable_test.sql
           $P -f backend/db/tests/attendance_test.sql
           $P -f backend/db/tests/notices_test.sql
+          $P -f backend/db/tests/fees_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

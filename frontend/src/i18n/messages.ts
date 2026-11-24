@@ -9,6 +9,7 @@ export const en = {
   'nav.students': 'Students',
   'nav.academic': 'Academic structure',
   'nav.notices': 'Notices',
+  'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.timetable': 'Timetable',
   'nav.imports': 'Imports',

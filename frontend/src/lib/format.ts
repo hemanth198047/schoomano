@@ -34,3 +34,15 @@ export function formatDay(isoDate: string): string {
 export function formatDayRange(startsOn: string, endsOn: string): string {
   return startsOn === endsOn ? formatDay(startsOn) : `${formatDay(startsOn)} – ${formatDay(endsOn)}`;
 }
+
+/**
+ * Turns what a person types ("1,250", "1250.5", "₹ 99.99") into whole paise without floating point.
+ * Returns null for anything that is not a positive amount with at most two decimals.
+ */
+export function rupeesToPaise(text: string): number | null {
+  const t = text.replace(/[₹,\s]/g, '');
+  const m = /^(\d{1,9})(?:\.(\d{1,2}))?$/.exec(t);
+  if (!m) return null;
+  const paise = Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0') || '0');
+  return paise > 0 ? paise : null;
+}

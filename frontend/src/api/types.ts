@@ -386,3 +386,45 @@ export interface SentNotice {
   smsFailed: number;
   smsSkipped: number;
 }
+
+export interface InvoiceSummary {
+  id: string;
+  number: string;
+  status: 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
+  studentId: string;
+  studentName: string;
+  dueOn: string;
+  totalPaise: number;
+  paidPaise: number;
+  overdue: boolean;
+}
+
+export interface InvoicePayment {
+  id: string;
+  amountPaise: number;
+  method: 'GATEWAY' | 'CASH' | 'CHEQUE' | 'UPI_OFFICE';
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'NEEDS_REFUND';
+  reference: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface InvoiceDetail {
+  invoice: InvoiceSummary;
+  lines: { description: string; amountPaise: number }[];
+  payments: InvoicePayment[];
+}
+
+export interface PaymentOrder {
+  paymentId: string;
+  orderId: string;
+  amountPaise: number;
+  provider: string;
+  sandbox: boolean;
+}
+
+export interface Reconciliation {
+  days: { date: string; method: string; payments: number; totalPaise: number }[];
+  exceptions: { kind: string; invoiceNumber: string; amountPaise: number; at: string; detail: string }[];
+  collectedPaise: number;
+}

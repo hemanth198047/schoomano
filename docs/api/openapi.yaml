@@ -1289,6 +1289,203 @@ paths:
         '204': { description: Marked }
         '404': { description: Not your notice, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
 
+  /api/v1/campuses/{campusId}/fee-heads:
+    parameters: [{ $ref: '#/components/parameters/CampusId' }]
+    get:
+      tags: [Fees]
+      summary: Fee heads of a campus (FEE_READ)
+      responses:
+        '200': { description: Fee heads, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/FeeHead' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Fees]
+      summary: Add a fee head (FEE_MANAGE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string, pattern: '^[A-Z0-9-]{2,16}$' }
+                name: { type: string, minLength: 2, maxLength: 80 }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/FeeHead' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/invoices:
+    parameters: [{ $ref: '#/components/parameters/YearId' }]
+    get:
+      tags: [Fees]
+      summary: Invoices of a year, newest first, at most 500 (FEE_READ)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [ISSUED, PARTIALLY_PAID, PAID, CANCELLED] } }
+        - { name: studentId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Invoices, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/InvoiceSummary' } } } } }
+    post:
+      tags: [Fees]
+      summary: Issue one invoice (FEE_MANAGE). The total is the sum of its lines, in paise.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, dueOn, lines]
+              properties:
+                studentId: { type: string, format: uuid }
+                dueOn: { type: string, format: date }
+                lines: { type: array, minItems: 1, maxItems: 20, items: { $ref: '#/components/schemas/InvoiceLineRequest' } }
+      responses:
+        '201': { description: Issued, content: { application/json: { schema: { $ref: '#/components/schemas/InvoiceDetail' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/invoices/bulk:
+    parameters: [{ $ref: '#/components/parameters/YearId' }]
+    post:
+      tags: [Fees]
+      summary: One invoice per enrolled student of a class (FEE_MANAGE). Repeating a batchKey skips students who already have it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sectionId, dueOn, batchKey, lines]
+              properties:
+                sectionId: { type: string, format: uuid }
+                dueOn: { type: string, format: date }
+                batchKey: { type: string, minLength: 8, maxLength: 60 }
+                lines: { type: array, minItems: 1, maxItems: 20, items: { $ref: '#/components/schemas/InvoiceLineRequest' } }
+      responses:
+        '201': { description: Counts, content: { application/json: { schema: { type: object, properties: { created: { type: integer }, skipped: { type: integer } } } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/invoices:
+    get:
+      tags: [Fees]
+      summary: A child's invoices, for staff with FEE_READ or a guardian with the pay-fees capability
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Invoices, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/InvoiceSummary' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/invoices/{invoiceId}:
+    get:
+      tags: [Fees]
+      summary: One invoice with its lines and payments
+      parameters:
+        - { name: invoiceId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Invoice, content: { application/json: { schema: { $ref: '#/components/schemas/InvoiceDetail' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/invoices/{invoiceId}/cancel:
+    post:
+      tags: [Fees]
+      summary: Cancel an invoice that has no successful payment, with a reason (FEE_MANAGE)
+      parameters:
+        - { name: invoiceId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 3, maxLength: 200 } } }
+      responses:
+        '200': { description: Cancelled, content: { application/json: { schema: { $ref: '#/components/schemas/InvoiceDetail' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/v1/invoices/{invoiceId}/payments/offline:
+    post:
+      tags: [Fees]
+      summary: Record cash, cheque or office UPI (FEE_MANAGE). Repeating the Idempotency-Key returns the first result.
+      parameters:
+        - { name: invoiceId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 100 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountPaise, method]
+              properties:
+                amountPaise: { type: integer, format: int64, minimum: 1 }
+                method: { type: string, enum: [CASH, CHEQUE, UPI_OFFICE] }
+                reference: { type: string, maxLength: 60, description: Required for cheques }
+      responses:
+        '201': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/InvoiceDetail' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { description: More than is due, a cancelled invoice, or a reused key, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/invoices/{invoiceId}/pay:
+    post:
+      tags: [Fees]
+      summary: A guardian with the pay-fees capability starts an online payment. It stays pending until the provider's signed webhook arrives.
+      parameters:
+        - { name: invoiceId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 100 } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { amountPaise: { type: integer, format: int64, nullable: true, description: Defaults to everything still due } } }
+      responses:
+        '201': { description: Order created, content: { application/json: { schema: { $ref: '#/components/schemas/PaymentOrder' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '503': { description: No payment provider configured, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/payments/webhook:
+    post:
+      tags: [Fees]
+      summary: The payment provider's event. The X-Signature HMAC over the raw body is the only credential; each event id is applied once.
+      security: []
+      parameters:
+        - { name: X-Signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventId, orderId, amountPaise, status]
+              properties:
+                eventId: { type: string }
+                orderId: { type: string }
+                paymentId: { type: string }
+                amountPaise: { type: integer, format: int64 }
+                status: { type: string, enum: [SUCCEEDED, FAILED] }
+      responses:
+        '200':
+          description: Processed. outcome is one of APPLIED, DUPLICATE, IGNORED, UNKNOWN_ORDER, AMOUNT_MISMATCH, FAILED_RECORDED, OVERPAYMENT.
+          content: { application/json: { schema: { type: object, properties: { outcome: { type: string } } } } }
+        '401': { description: Bad or missing signature, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/payments/sandbox/complete:
+    post:
+      tags: [Fees]
+      summary: Sandbox only. Completes the caller's own pending payment through the same path as a real webhook. 404 when a real provider is configured.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, outcome]
+              properties:
+                orderId: { type: string }
+                outcome: { type: string, enum: [SUCCEEDED, FAILED] }
+      responses:
+        '200': { description: Applied, content: { application/json: { schema: { type: object, properties: { outcome: { type: string } } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/fees/reconciliation:
+    parameters: [{ $ref: '#/components/parameters/CampusId' }]
+    get:
+      tags: [Fees]
+      summary: Collections per day and method, and what needs a person (refunds due, amount mismatches, stale pending payments) (FEE_READ)
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Report, content: { application/json: { schema: { $ref: '#/components/schemas/Reconciliation' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearer:
@@ -1884,3 +2081,78 @@ components:
         warnings:
           type: array
           items: { type: string }
+
+    FeeHead:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        status: { type: string }
+    InvoiceLineRequest:
+      type: object
+      required: [description, amountPaise]
+      properties:
+        feeHeadId: { type: string, format: uuid, nullable: true }
+        description: { type: string, minLength: 2, maxLength: 120 }
+        amountPaise: { type: integer, format: int64, minimum: 1 }
+    InvoiceSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string, example: INV-2026-27-000001 }
+        status: { type: string, enum: [ISSUED, PARTIALLY_PAID, PAID, CANCELLED] }
+        studentId: { type: string, format: uuid }
+        studentName: { type: string }
+        dueOn: { type: string, format: date }
+        totalPaise: { type: integer, format: int64 }
+        paidPaise: { type: integer, format: int64 }
+        overdue: { type: boolean }
+    InvoiceDetail:
+      type: object
+      properties:
+        invoice: { $ref: '#/components/schemas/InvoiceSummary' }
+        lines: { type: array, items: { type: object, properties: { description: { type: string }, amountPaise: { type: integer, format: int64 } } } }
+        payments:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              amountPaise: { type: integer, format: int64 }
+              method: { type: string, enum: [GATEWAY, CASH, CHEQUE, UPI_OFFICE] }
+              status: { type: string, enum: [PENDING, SUCCEEDED, FAILED, NEEDS_REFUND] }
+              reference: { type: string, nullable: true }
+              createdAt: { type: string, format: date-time }
+              completedAt: { type: string, format: date-time, nullable: true }
+    PaymentOrder:
+      type: object
+      properties:
+        paymentId: { type: string, format: uuid }
+        orderId: { type: string }
+        amountPaise: { type: integer, format: int64 }
+        provider: { type: string }
+        sandbox: { type: boolean }
+    Reconciliation:
+      type: object
+      properties:
+        collectedPaise: { type: integer, format: int64 }
+        days:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              method: { type: string }
+              payments: { type: integer }
+              totalPaise: { type: integer, format: int64 }
+        exceptions:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [REFUND_DUE, AMOUNT_MISMATCH, STALE_PENDING] }
+              invoiceNumber: { type: string }
+              amountPaise: { type: integer, format: int64 }
+              at: { type: string, format: date-time }
+              detail: { type: string }
