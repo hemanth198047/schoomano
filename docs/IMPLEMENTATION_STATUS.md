@@ -92,3 +92,14 @@ Nothing below claims production readiness. No module has been used by a real sch
 15. Sessions are per phone number, not per school: ending a guardian's sessions in one school ends that number's sessions everywhere. Sessions are kept after a relationship ends (the identity then has no children). A refresh response lost on a bad network makes the retry look like a replay and ends the session; the parent signs in again with a new code. Unknown-number challenges are stored (so limits and timing match) and are not purged yet.
 16. Web attendance keeps unsent marks in memory only (child data is not written to browser storage); closing the tab loses unsent marks. Durable offline storage belongs to the Android app (B9).
 17. The notice dispatcher runs inside the API process on a 15-second poll. The cross-school SQL functions it calls run as the schema owner and are granted to the application role, so a compromised application could ask for due SMS (phone numbers and generic text) across schools; a separate worker role is the planned hardening before production.
+
+## B9 mobile app (in progress, 2026-11-24)
+
+| Item | Status | Notes |
+|---|---|---|
+| `GET /students/{id}/attendance` (guardian or staff) | **CI pending** | Guardian needs the view-attendance capability; 92-day cap; denied reads are 404. `StudentAttendanceApiIT` |
+| `mobile/` Expo app: core library | **Verified locally** | 22 unit tests: token refresh shared across parallel calls and sign-out on a dead refresh token, durable attendance queue (survives restart, ordered, retry-safe, refused batches kept visible), saved class lists used only when offline |
+| `mobile/` screens (sign-in, parent home, teacher attendance) | **Written, typechecked, not run on a device** | No emulator or device is available to this build; cold start under 3 s on a 2 GB phone and 30-minute offline periods are untested |
+| Teacher sign-in on the phone | **Not built** | Phone codes carry guardian links only (ADR 0009); staff need the school's identity provider (OIDC). Development builds accept a pasted dev token |
+| Encrypted offline store | **Not built** | Queue and saved lists use AsyncStorage (not encrypted). Tokens use the secure store. ADR 0005 asks for encrypted storage |
+| Push notifications, app-store builds, Hindi strings, ADR 0005 prototype on a low-end device | **Not built** | ADR 0005 stays "Proposed" until the device test |

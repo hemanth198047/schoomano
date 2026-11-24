@@ -73,6 +73,22 @@ jobs:
       - name: Tokens, typecheck, lint, format, tests (incl. axe), build
         run: npm run check
 
+  mobile:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Typecheck, format, unit tests (client, offline queue, saved lists)
+        run: npm run check
+
   scripts-and-infra:
     runs-on: ubuntu-24.04
     steps:

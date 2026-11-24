@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Schoomano",
+    "slug": "schoomano",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": { "package": "in.schoomano.app", "allowBackup": false },
+    "ios": { "bundleIdentifier": "in.schoomano.app" },
+    "extra": { "apiBaseUrl": "http://10.0.2.2:8080" }
+  }
+}

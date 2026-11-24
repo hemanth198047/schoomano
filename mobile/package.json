@@ -1,0 +1,30 @@
+{
+  "name": "schoomano-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "description": "Schoomano mobile app (Expo, React Native): parent and teacher views, chosen by the server's answer for the signed-in person.",
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "expo": "^58.0.26",
+    "expo-secure-store": "~58.0.3",
+    "expo-status-bar": "~58.0.5",
+    "react": "^19.3.0",
+    "react-native": "^0.88.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "vitest": "^5.1.1"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "check": "npm run typecheck && npm run format:check && npm run test"
+  }
+}

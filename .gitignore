@@ -19,3 +19,7 @@ frontend/src/styles/tokens.generated.css
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Mobile
+mobile/.expo/
+mobile/dist/
