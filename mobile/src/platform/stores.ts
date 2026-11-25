@@ -3,21 +3,29 @@ import * as SecureStore from 'expo-secure-store';
 import type { TokenStore } from '../core/api';
 import type { KeyValueStore } from '../core/storage';
 
-const TOKENS = 'schoomano.session';
+const ACCESS = 'schoomano.access';
+const REFRESH = 'schoomano.refresh';
 
-/** Tokens live in the operating system's secure store (Keystore on Android), never in plain storage. */
+/**
+ * Tokens live in the operating system's secure store (Keystore on Android), never in plain storage. The two tokens
+ * are kept under separate keys because a provider's tokens together can exceed the 2 KB a single entry may hold.
+ */
 export const secureTokenStore: TokenStore = {
   async load() {
-    const raw = await SecureStore.getItemAsync(TOKENS);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as { accessToken: string; refreshToken: string };
-    } catch {
-      return null;
-    }
+    const [accessToken, refreshToken] = await Promise.all([
+      SecureStore.getItemAsync(ACCESS),
+      SecureStore.getItemAsync(REFRESH),
+    ]);
+    return accessToken ? { accessToken, refreshToken: refreshToken ?? '' } : null;
   },
-  save: (t) => SecureStore.setItemAsync(TOKENS, JSON.stringify(t)),
-  clear: () => SecureStore.deleteItemAsync(TOKENS),
+  async save(t) {
+    await SecureStore.setItemAsync(ACCESS, t.accessToken);
+    await SecureStore.setItemAsync(REFRESH, t.refreshToken);
+  },
+  async clear() {
+    await SecureStore.deleteItemAsync(ACCESS);
+    await SecureStore.deleteItemAsync(REFRESH);
+  },
 };
 
 /** Queued attendance and class lists. Not yet encrypted (tracked in the status document). */

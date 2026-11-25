@@ -2,6 +2,7 @@
   "expo": {
     "name": "Schoomano",
     "slug": "schoomano",
+    "scheme": "schoomano",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

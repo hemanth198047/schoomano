@@ -19,4 +19,6 @@ npm install
 EXPO_PUBLIC_API_URL=http://10.0.2.2:8080 EXPO_PUBLIC_ALLOW_DEV_TOKEN=true npx expo start --android
 ```
 
+Staff sign in with the school's identity provider when `EXPO_PUBLIC_OIDC_ISSUER` and `EXPO_PUBLIC_OIDC_CLIENT_ID` are set (public client, redirect `schoomano://signin`, scopes `openid profile offline_access`). Parents use a phone code.
+
 `npm run check` runs typecheck, format check and unit tests (this is what CI runs). The screens have not been run on a device yet.

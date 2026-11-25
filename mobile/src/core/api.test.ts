@@ -121,3 +121,79 @@ describe('client', () => {
     expect(seen[0]!.get('Authorization')).toBeNull();
   });
 });
+
+describe('client with a staff (provider) refresh', () => {
+  const unauthorized = () => Promise.resolve(json(401, { code: 'unauthenticated', detail: 'no' }));
+
+  it('uses the provider refresh instead of the phone-code one and retries', async () => {
+    const store = tokenStore({ accessToken: 'old', refreshToken: 'idp-r1' });
+    const urls: string[] = [];
+    const f = vi.fn((u: string, init: RequestInit) => {
+      urls.push(u);
+      return Promise.resolve(
+        new Headers(init.headers).get('Authorization') === 'Bearer idp-new'
+          ? json(200, { ok: 1 })
+          : json(401, {}),
+      );
+    });
+    const c = createClient({
+      baseUrl: 'http://x',
+      tokens: store,
+      fetchImpl: f as unknown as typeof fetch,
+      externalRefresh: () => Promise.resolve({ accessToken: 'idp-new', refreshToken: 'idp-r2' }),
+    });
+    expect(await c.request('/a')).toEqual({ ok: 1 });
+    expect(urls.some((u) => u.includes('/auth/token/refresh'))).toBe(false);
+    expect(store.current).toEqual({ accessToken: 'idp-new', refreshToken: 'idp-r2' });
+  });
+
+  it('signs out when the provider ends the session, but keeps the session when it cannot be reached', async () => {
+    const out = vi.fn();
+    const ended = tokenStore({ accessToken: 'o', refreshToken: 'r' });
+    const f = vi.fn(unauthorized);
+    const c1 = createClient({
+      baseUrl: 'http://x',
+      tokens: ended,
+      fetchImpl: f as unknown as typeof fetch,
+      onSignedOut: out,
+      externalRefresh: () => Promise.resolve('ended'),
+    });
+    await expect(c1.request('/a')).rejects.toMatchObject({ status: 401 });
+    expect(out).toHaveBeenCalledOnce();
+    expect(ended.current).toBeNull();
+
+    const kept = tokenStore({ accessToken: 'o', refreshToken: 'r' });
+    const c2 = createClient({
+      baseUrl: 'http://x',
+      tokens: kept,
+      fetchImpl: f as unknown as typeof fetch,
+      externalRefresh: () => Promise.reject(new ApiError(0, 'network_unreachable', 'down')),
+    });
+    await expect(c2.request('/a')).rejects.toMatchObject({ status: 401 });
+    expect(kept.current).not.toBeNull();
+  });
+
+  it('falls back to the phone-code refresh for parents', async () => {
+    const store = tokenStore({ accessToken: 'o', refreshToken: 'r' });
+    let refreshed = false;
+    const f = vi.fn((u: string, init: RequestInit) => {
+      if (u.endsWith('/auth/token/refresh')) {
+        refreshed = true;
+        return Promise.resolve(
+          json(200, { accessToken: 'n', refreshToken: 'r2', expiresIn: 1, refreshExpiresIn: 1 }),
+        );
+      }
+      return Promise.resolve(
+        new Headers(init.headers).get('Authorization') === 'Bearer n' ? json(200, {}) : json(401, {}),
+      );
+    });
+    const c = createClient({
+      baseUrl: 'http://x',
+      tokens: store,
+      fetchImpl: f as unknown as typeof fetch,
+      externalRefresh: () => Promise.resolve(null),
+    });
+    await c.request('/a');
+    expect(refreshed).toBe(true);
+  });
+});

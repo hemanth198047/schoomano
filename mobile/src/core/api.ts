@@ -25,6 +25,15 @@ export interface ClientOptions {
   fetchImpl?: typeof fetch;
   /** Called when the refresh token no longer works, so the app can return to sign-in. */
   onSignedOut?: () => void;
+  /**
+   * Refreshing for a sign-in the school's identity provider owns (staff). Return the new pair, "ended" when the
+   * provider refuses, or null when this is not such a session, in which case the phone-code refresh is used.
+   * Throw an ApiError with status 0 when offline: the session is kept.
+   */
+  externalRefresh?: (current: {
+    accessToken: string;
+    refreshToken: string;
+  }) => Promise<{ accessToken: string; refreshToken: string } | 'ended' | null>;
 }
 
 const unreachable = () =>
@@ -78,6 +87,23 @@ export function createClient(opts: ClientOptions) {
       try {
         const t = await opts.tokens.load();
         if (!t) return false;
+        if (opts.externalRefresh) {
+          let outcome: Awaited<ReturnType<NonNullable<ClientOptions['externalRefresh']>>>;
+          try {
+            outcome = await opts.externalRefresh(t);
+          } catch {
+            return false; // offline or provider down: keep the session and try again later
+          }
+          if (outcome === 'ended') {
+            await opts.tokens.clear();
+            opts.onSignedOut?.();
+            return false;
+          }
+          if (outcome) {
+            await opts.tokens.save(outcome);
+            return true;
+          }
+        }
         const res = await send(
           '/api/v1/auth/token/refresh',
           { method: 'POST', json: { refreshToken: t.refreshToken } },
@@ -130,9 +156,9 @@ export function createClient(opts: ClientOptions) {
       const t = await publicPost<TokenResponse>('/api/v1/auth/otp/verify', { phone, code, deviceLabel });
       await opts.tokens.save({ accessToken: t.accessToken, refreshToken: t.refreshToken });
     },
-    /** For staff builds and development, where the token comes from elsewhere (the school's sign-in or a dev token). */
-    async useToken(accessToken: string) {
-      await opts.tokens.save({ accessToken, refreshToken: '' });
+    /** For staff, whose tokens come from the school's identity provider, and for development tokens. */
+    async useTokens(tokens: { accessToken: string; refreshToken: string }) {
+      await opts.tokens.save(tokens);
     },
     async signOut() {
       const t = await opts.tokens.load();

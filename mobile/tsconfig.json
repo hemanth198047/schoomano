@@ -7,7 +7,7 @@
     "noUnusedParameters": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["react", "react-native"]
+    "types": ["react", "react-native", "node"]
   },
   "include": ["index.ts", "App.tsx", "src"],
   "exclude": ["node_modules"]

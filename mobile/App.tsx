@@ -6,6 +6,12 @@ import { forgetSavedLists, loadMe } from './src/core/cached';
 import { modeOf } from './src/core/money';
 import type { Me } from './src/core/types';
 import { API_BASE_URL } from './src/config';
+import {
+  markParentSession,
+  signInStaff,
+  staffRefresh,
+  staffSignInAvailable,
+} from './src/platform/staffSignIn';
 import { deviceStore, secureTokenStore } from './src/platform/stores';
 import { ParentHome } from './src/screens/ParentHome';
 import { SignIn } from './src/screens/SignIn';
@@ -26,6 +32,7 @@ export default function App() {
       createClient({
         baseUrl: API_BASE_URL,
         tokens: secureTokenStore,
+        externalRefresh: staffRefresh,
         onSignedOut: () => setPhase({ name: 'signedOut' }),
       }),
     [],
@@ -52,7 +59,7 @@ export default function App() {
   const signOut = () =>
     void client
       .signOut()
-      .then(() => forgetSavedLists(deviceStore, ['me']))
+      .then(() => forgetSavedLists(deviceStore, ['me', 'session-kind']))
       .then(() => setPhase({ name: 'signedOut' }));
 
   return (
@@ -63,7 +70,14 @@ export default function App() {
           <Body muted>Opening Schoomano…</Body>
         </View>
       )}
-      {phase.name === 'signedOut' && <SignIn client={client} onDone={() => void start()} />}
+      {phase.name === 'signedOut' && (
+        <SignIn
+          client={client}
+          onDone={() => void start()}
+          onStaff={staffSignInAvailable ? signInStaff : undefined}
+          onParent={markParentSession}
+        />
+      )}
       {phase.name === 'failed' && (
         <View style={{ padding: 20 }}>
           <Heading>No connection</Heading>

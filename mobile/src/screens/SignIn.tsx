@@ -15,7 +15,17 @@ const input = {
 } as const;
 
 /** Parents sign in with a code sent to the mobile number the school has on file (ADR 0009). */
-export function SignIn({ client, onDone }: { client: Client; onDone: () => void }) {
+export function SignIn({
+  client,
+  onDone,
+  onStaff,
+  onParent,
+}: {
+  client: Client;
+  onDone: () => void;
+  onParent?: () => Promise<void>;
+  onStaff?: () => Promise<{ accessToken: string; refreshToken: string }>;
+}) {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
@@ -84,6 +94,7 @@ export function SignIn({ client, onDone }: { client: Client; onDone: () => void 
             onPress={() =>
               void run(async () => {
                 await client.verifyOtp(phone, code, `${Platform.OS} app`);
+                await onParent?.();
                 onDone();
               })
             }
@@ -96,6 +107,22 @@ export function SignIn({ client, onDone }: { client: Client; onDone: () => void 
               setCode('');
               setError(null);
             }}
+          />
+        </>
+      )}
+      {onStaff && (
+        <>
+          <Heading>School staff</Heading>
+          <Button
+            label="Sign in with your school account"
+            quiet
+            busy={busy}
+            onPress={() =>
+              void run(async () => {
+                await client.useTokens(await onStaff());
+                onDone();
+              })
+            }
           />
         </>
       )}
@@ -117,7 +144,7 @@ export function SignIn({ client, onDone }: { client: Client; onDone: () => void 
             disabled={!dev.startsWith('dev:')}
             onPress={() =>
               void run(async () => {
-                await client.useToken(dev);
+                await client.useTokens({ accessToken: dev, refreshToken: '' });
                 onDone();
               })
             }
