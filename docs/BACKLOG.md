@@ -29,6 +29,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B10** (done, verified in CI) Support console | M30 | B4 | School-approved, time-limited support sessions visible to the school; full audit; health dashboard |
 | **B11** (done, verified in CI) Assessment and report cards | M09 | B4 | Teacher enters marks; locked marks change only with a reason and history; report cards published as frozen snapshots on the grade scale in force; corrections are new revisions; guardians read their child's card |
 | **B12** (done, verified in CI) Admissions | M02 | B4 | Enquiry to enrolment with fixed stages, reasons to end, seat checks with override, one live application per child, history; enrolment creates student, guardian and placement |
+| **B13** Curriculum and learning (done locally, CI pending) | M07, M08 | B4 | Syllabus per grade and subject, permanent coverage per class, homework visible to guardians with view-academic |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 

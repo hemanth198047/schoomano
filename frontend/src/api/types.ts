@@ -570,3 +570,30 @@ export interface AdmissionListing {
   items: AdmissionItem[];
   seats: AdmissionSeats[];
 }
+
+export interface HomeworkItem {
+  id: string;
+  sectionId: string;
+  subjectId: string;
+  subjectName: string;
+  title: string;
+  instructions: string | null;
+  assignedOn: string;
+  dueOn: string;
+  status: 'ACTIVE' | 'CANCELLED';
+}
+
+export interface CoverageUnit {
+  id: string;
+  ordinal: number;
+  title: string;
+  outcomes: string | null;
+  coveredOn: string | null;
+}
+
+export interface Coverage {
+  subjectId: string;
+  total: number;
+  covered: number;
+  units: CoverageUnit[];
+}

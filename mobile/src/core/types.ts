@@ -103,3 +103,12 @@ export interface ReportCard {
   overallGrade: string;
   publishedAt: string;
 }
+
+export interface HomeworkItem {
+  id: string;
+  subjectName: string;
+  title: string;
+  instructions: string | null;
+  assignedOn: string;
+  dueOn: string;
+}

@@ -29,6 +29,11 @@ public enum Permission {
     /** Enquiries, applications and offers for a campus (M02). */
     ADMISSION_READ(false),
     ADMISSION_MANAGE(true),
+    /** Syllabus per grade and subject (M07). */
+    CURRICULUM_MANAGE(true),
+    /** Coverage and homework of a class (M08). */
+    LEARNING_READ(false),
+    LEARNING_WRITE(true),
     TIMETABLE_READ(false),
     TIMETABLE_MANAGE(true),
     FEE_READ(false),

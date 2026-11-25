@@ -2,8 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { ApiError, type Client } from '../core/api';
 import { formatPaise } from '../core/money';
+import { homeworkLine } from '../core/homework';
 import { reportLines } from '../core/report';
-import type { ChildAttendance, InboxItem, InvoiceSummary, Me, PaymentOrder, ReportCard } from '../core/types';
+import type {
+  ChildAttendance,
+  InboxItem,
+  InvoiceSummary,
+  HomeworkItem,
+  Me,
+  PaymentOrder,
+  ReportCard,
+} from '../core/types';
 import { Body, Button, Card, Heading, Notice } from '../ui';
 
 type Child = Me['children'][number];
@@ -50,7 +59,10 @@ function ChildView({ client, child }: { client: Client; child: Child }) {
         <Attendance client={client} studentId={child.studentId} />
       )}
       {child.capabilities.includes('VIEW_ACADEMIC') && (
-        <ReportCards client={client} studentId={child.studentId} />
+        <>
+          <Homework client={client} studentId={child.studentId} />
+          <ReportCards client={client} studentId={child.studentId} />
+        </>
       )}
       {child.capabilities.includes('PAY_FEES') && <Fees client={client} studentId={child.studentId} />}
     </>
@@ -85,6 +97,35 @@ function Attendance({ client, studentId }: { client: Client; studentId: string }
           {data.days.length === 0 && <Body muted>No attendance recorded yet.</Body>}
         </>
       )}
+    </Card>
+  );
+}
+
+function Homework({ client, studentId }: { client: Client; studentId: string }) {
+  const [items, setItems] = useState<HomeworkItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    client
+      .request<HomeworkItem[]>(`/api/v1/students/${studentId}/homework`)
+      .then((d) => live && setItems(d))
+      .catch((e: unknown) => live && setError(oops(e)));
+    return () => {
+      live = false;
+    };
+  }, [client, studentId]);
+  return (
+    <Card>
+      <Heading>Homework</Heading>
+      {error && <Notice kind="error">{error}</Notice>}
+      {!items && !error && <Body muted>Loading…</Body>}
+      {items?.length === 0 && <Body muted>No homework right now.</Body>}
+      {items?.map((h) => (
+        <View key={h.id} style={{ marginBottom: 8 }}>
+          <Body strong>{homeworkLine(h, today())}</Body>
+          {h.instructions && <Body muted>{h.instructions}</Body>}
+        </View>
+      ))}
     </Card>
   );
 }

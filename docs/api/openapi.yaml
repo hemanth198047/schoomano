@@ -1740,6 +1740,139 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: Not accepted yet, or the class is full, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/grade-levels/{gradeId}/curriculum:
+    get:
+      tags: [Learning]
+      summary: Syllabus units of a grade, optionally for one subject (LEARNING_READ)
+      parameters:
+        - { name: gradeId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: subjectId, in: query, required: false, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Units, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CurriculumUnit' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Learning]
+      summary: Add a unit to the end of a grade's syllabus for a subject (CURRICULUM_MANAGE). The subject and term must belong to the grade's programme
+      parameters:
+        - { name: gradeId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectId, title]
+              properties:
+                subjectId: { type: string, format: uuid }
+                termId: { type: string, format: uuid }
+                title: { type: string, minLength: 2, maxLength: 120 }
+                outcomes: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/CurriculumUnit' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/sections/{sectionId}/coverage:
+    get:
+      tags: [Learning]
+      summary: Which syllabus units a class has been taught for a subject (LEARNING_READ)
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: subjectId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Coverage
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subjectId: { type: string, format: uuid }
+                  total: { type: integer }
+                  covered: { type: integer }
+                  units:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        ordinal: { type: integer }
+                        title: { type: string }
+                        outcomes: { type: string, nullable: true }
+                        coveredOn: { type: string, format: date, nullable: true }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Learning]
+      summary: Record that a class has been taught a unit (LEARNING_WRITE). Permanent; not dated in the future
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [unitId]
+              properties:
+                unitId: { type: string, format: uuid }
+                coveredOn: { type: string, format: date }
+      responses:
+        '201': { description: Recorded }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Already covered, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/sections/{sectionId}/homework:
+    get:
+      tags: [Learning]
+      summary: Homework of a class, from a week ago onwards unless includePast (LEARNING_READ)
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: includePast, in: query, required: false, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: Homework, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Homework' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Learning]
+      summary: Set homework for a class and subject (LEARNING_WRITE). Due today or later
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectId, title, dueOn]
+              properties:
+                subjectId: { type: string, format: uuid }
+                title: { type: string, minLength: 2, maxLength: 120 }
+                instructions: { type: string, maxLength: 2000 }
+                dueOn: { type: string, format: date }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Homework' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/homework/{id}/cancel:
+    post:
+      tags: [Learning]
+      summary: Cancel homework. It is the only change allowed after setting it (LEARNING_WRITE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cancelled, content: { application/json: { schema: { $ref: '#/components/schemas/Homework' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/homework:
+    get:
+      tags: [Learning]
+      summary: Active homework for one child, due from a week ago onwards. Guardians need the view-academic capability
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Homework, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Homework' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -1975,6 +2108,28 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    CurriculumUnit:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        subjectId: { type: string, format: uuid }
+        subjectName: { type: string }
+        termId: { type: string, format: uuid, nullable: true }
+        ordinal: { type: integer }
+        title: { type: string }
+        outcomes: { type: string, nullable: true }
+    Homework:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sectionId: { type: string, format: uuid }
+        subjectId: { type: string, format: uuid }
+        subjectName: { type: string }
+        title: { type: string }
+        instructions: { type: string, nullable: true }
+        assignedOn: { type: string, format: date }
+        dueOn: { type: string, format: date }
+        status: { type: string, enum: [ACTIVE, CANCELLED] }
     AdmissionApplication:
       type: object
       properties:
