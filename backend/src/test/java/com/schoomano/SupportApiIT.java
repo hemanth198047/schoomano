@@ -89,6 +89,10 @@ class SupportApiIT extends ApiITSupport {
         mvc.perform(as(get("/api/v1/audit"), "dev-meera")).andExpect(status().isNotFound());
         mvc.perform(as(get("/api/v1/audit/verify"), "dev-meera")).andExpect(status().isNotFound());
         mvc.perform(as(get("/api/v1/operations/health"), "dev-meera")).andExpect(status().isNotFound());
+        // Every read of the trail is itself recorded, so a few reads guarantee there is something to page through.
+        for (int i = 0; i < 4; i++) {
+            mvc.perform(as(get("/api/v1/operations/health"), "dev-asha")).andExpect(status().isOk());
+        }
         mvc.perform(as(get("/api/v1/audit?limit=3"), "dev-asha")).andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(3)))
             .andExpect(jsonPath("$[0].seq").value(greaterThan(0)));
         long first = ((Number) JsonPath.read(mvc.perform(as(get("/api/v1/audit?limit=2"), "dev-asha")).andReturn().getResponse().getContentAsString(), "$[1].seq")).longValue();
