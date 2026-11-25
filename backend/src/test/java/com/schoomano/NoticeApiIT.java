@@ -145,8 +145,11 @@ class NoticeApiIT extends ApiITSupport {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"date\":\"2026-10-06\",\"source\":\"WEB\",\"marks\":[{\"studentId\":\"" + ZOYA + "\",\"status\":\"ABSENT\",\"baseVersion\":0}]}"))
             .andExpect(status().isOk());
-        ownerUpdate("update notice_delivery set send_after = now() - interval '1 minute' where channel = 'SMS' and status = 'PENDING'");
+        // Events become notices when the dispatcher runs; after 21:00 India time their SMS wait for morning, so the
+        // first pass creates them, then they are back-dated and the second pass sends them (any time of day).
         TEXTS.clear();
+        dispatcher.runOnce();
+        ownerUpdate("update notice_delivery set send_after = now() - interval '1 minute' where channel = 'SMS' and status = 'PENDING'");
         dispatcher.runOnce();
         mvc.perform(as(get("/api/v1/notices/mine"), "dev-g711")).andExpect(jsonPath("$[?(@.kind=='ATTENDANCE')].body").value(hasItem(containsString("Zoya was marked absent"))));
         // The notices-only guardian and the suspended one are not told.
