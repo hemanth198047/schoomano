@@ -135,6 +135,10 @@ public class SafeguardingController {
             if ("CLOSED".equals(s.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, "report_closed", "A closed report takes no more actions.");
             }
+            // The action is written before the move: once a report is closed the database refuses further actions.
+            jdbc.update("""
+                insert into safeguarding_action (tenant_id, report_id, from_status, to_status, note, actor_person_id) values (?, ?, ?, ?, ?, ?)
+                """, ctx.tenant().value(), id, s.status(), req.toStatus(), note, ctx.actor().personId());
             if (req.toStatus() != null) {
                 try {
                     jdbc.update("update safeguarding_report set status = ? where id = ?", req.toStatus(), id);
@@ -142,9 +146,6 @@ public class SafeguardingController {
                     throw new ApiException(HttpStatus.CONFLICT, "invalid_move", "A report cannot move from " + s.status() + " to " + req.toStatus() + ".");
                 }
             }
-            jdbc.update("""
-                insert into safeguarding_action (tenant_id, report_id, from_status, to_status, note, actor_person_id) values (?, ?, ?, ?, ?, ?)
-                """, ctx.tenant().value(), id, s.status(), req.toStatus(), note, ctx.actor().personId());
             audit.write(jdbc, ctx, "safeguarding.acted", "safeguarding_report", id.toString(), "SUCCESS", null,
                 Map.of("from", s.status(), "to", req.toStatus() == null ? s.status() : req.toStatus()));
             return detailBody(jdbc, id);
