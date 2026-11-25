@@ -1873,6 +1873,113 @@ paths:
       responses:
         '200': { description: Homework, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Homework' } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/support-cases:
+    get:
+      tags: [Student support]
+      summary: "Support cases of one child (STUDENT_SUPPORT_READ, principal and administrators only). Recorded in the audit trail"
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cases, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SupportCaseSummary' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Student support]
+      summary: Open a confidential case for an enrolled child (STUDENT_SUPPORT_WRITE)
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, title]
+              properties:
+                category: { type: string, enum: [LEARNING, BEHAVIOUR, WELLBEING, ATTENDANCE, FAMILY, OTHER] }
+                title: { type: string, minLength: 2, maxLength: 120 }
+                firstNote: { type: string, maxLength: 4000 }
+                reviewOn: { type: string, format: date }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/SupportCaseSummary' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/support-cases:
+    get:
+      tags: [Student support]
+      summary: Cases for the year's students, optionally by status; open ones with the soonest review first (STUDENT_SUPPORT_READ). Recorded in the audit trail
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [OPEN, MONITORING, CLOSED] } }
+      responses:
+        '200': { description: Cases, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SupportCaseSummary' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/support-cases/{id}:
+    get:
+      tags: [Student support]
+      summary: One case with its notes (STUDENT_SUPPORT_READ). Each opening is written to the audit trail
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Case
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary: { $ref: '#/components/schemas/SupportCaseSummary' }
+                  closedReason: { type: string, nullable: true }
+                  notes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        body: { type: string }
+                        author: { type: string }
+                        at: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/support-cases/{id}/notes:
+    post:
+      tags: [Student support]
+      summary: Add a permanent note (STUDENT_SUPPORT_WRITE). A closed case takes none
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 2, maxLength: 4000 }
+      responses:
+        '201': { description: Added }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: The case is closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/support-cases/{id}/status:
+    post:
+      tags: [Student support]
+      summary: Move a case between open and monitoring, or close it with a reason (STUDENT_SUPPORT_WRITE). Closing is final
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OPEN, MONITORING, CLOSED] }
+                reason: { type: string, maxLength: 500, description: Required, at least 5 characters, to close }
+                reviewOn: { type: string, format: date }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/SupportCaseSummary' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: The case is already closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -2108,6 +2215,18 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    SupportCaseSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        studentName: { type: string }
+        category: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [OPEN, MONITORING, CLOSED] }
+        reviewOn: { type: string, format: date, nullable: true }
+        reviewDue: { type: boolean }
+        openedOn: { type: string, format: date }
     CurriculumUnit:
       type: object
       properties:

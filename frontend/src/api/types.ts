@@ -597,3 +597,23 @@ export interface Coverage {
   covered: number;
   units: CoverageUnit[];
 }
+
+export type SupportStatus = 'OPEN' | 'MONITORING' | 'CLOSED';
+
+export interface SupportCaseSummary {
+  id: string;
+  studentId: string;
+  studentName: string;
+  category: string;
+  title: string;
+  status: SupportStatus;
+  reviewOn: string | null;
+  reviewDue: boolean;
+  openedOn: string;
+}
+
+export interface SupportCaseDetail {
+  summary: SupportCaseSummary;
+  closedReason: string | null;
+  notes: { id: string; body: string; author: string; at: string }[];
+}

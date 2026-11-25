@@ -11,6 +11,7 @@ export const en = {
   'nav.notices': 'Notices',
   'nav.admissions': 'Admissions',
   'nav.learning': 'Syllabus and homework',
+  'nav.studentSupport': 'Student support',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

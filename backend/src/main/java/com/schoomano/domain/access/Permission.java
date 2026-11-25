@@ -34,6 +34,9 @@ public enum Permission {
     /** Coverage and homework of a class (M08). */
     LEARNING_READ(false),
     LEARNING_WRITE(true),
+    /** Confidential support cases about a child (M10). Never granted to guardians or ordinary teachers. */
+    STUDENT_SUPPORT_READ(false),
+    STUDENT_SUPPORT_WRITE(true),
     TIMETABLE_READ(false),
     TIMETABLE_MANAGE(true),
     FEE_READ(false),

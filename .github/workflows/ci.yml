@@ -59,6 +59,7 @@ jobs:
           $P -f backend/db/tests/assessment_test.sql
           $P -f backend/db/tests/admissions_test.sql
           $P -f backend/db/tests/learning_test.sql
+          $P -f backend/db/tests/student_support_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:
