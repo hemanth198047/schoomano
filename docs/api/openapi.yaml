@@ -1980,6 +1980,67 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: The case is already closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/students/{studentId}/safeguarding-reports:
+    post:
+      tags: [Safeguarding]
+      summary: Report a concern about an enrolled child (SAFEGUARDING_REPORT, any staff). Returns a receipt only, so the reporter cannot read it back
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, severity, description]
+              properties:
+                category: { type: string, enum: [PHYSICAL, EMOTIONAL, NEGLECT, ONLINE, BULLYING, OTHER] }
+                severity: { type: string, enum: [LOW, MEDIUM, HIGH, IMMEDIATE] }
+                description: { type: string, minLength: 10, maxLength: 4000 }
+                occurredOn: { type: string, format: date, description: Not in the future }
+      responses:
+        '201': { description: Received, content: { application/json: { schema: { $ref: '#/components/schemas/SafeguardingReceipt' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/safeguarding-reports:
+    get:
+      tags: [Safeguarding]
+      summary: Reports, open first then most severe (SAFEGUARDING_CASE_READ on the restricted partition, meaning the designated lead, case team or break-glass holder). Audited
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [REPORTED, TRIAGED, UNDER_REVIEW, ESCALATED, CLOSED] } }
+      responses:
+        '200': { description: Reports, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SafeguardingSummary' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/safeguarding-reports/{id}:
+    get:
+      tags: [Safeguarding]
+      summary: One report with its handling history. Every read is audited
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Report, content: { application/json: { schema: { $ref: '#/components/schemas/SafeguardingDetail' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/safeguarding-reports/{id}/actions:
+    post:
+      tags: [Safeguarding]
+      summary: Record a note and/or move to the next step. Escalating or closing needs a note; a closed report takes no more actions
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                toStatus: { type: string, enum: [TRIAGED, UNDER_REVIEW, ESCALATED, CLOSED] }
+                note: { type: string, maxLength: 4000, description: At least 5 characters to escalate or close }
+      responses:
+        '200': { description: Updated report, content: { application/json: { schema: { $ref: '#/components/schemas/SafeguardingDetail' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Step not allowed from here, or report closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -2215,6 +2276,41 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    SafeguardingReceipt:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        receivedAt: { type: string, format: date-time }
+        message: { type: string }
+    SafeguardingSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        studentName: { type: string }
+        category: { type: string }
+        severity: { type: string, enum: [LOW, MEDIUM, HIGH, IMMEDIATE] }
+        status: { type: string, enum: [REPORTED, TRIAGED, UNDER_REVIEW, ESCALATED, CLOSED] }
+        reportedAt: { type: string, format: date-time }
+        triageDueAt: { type: string, format: date-time, description: 1 hour for IMMEDIATE, 4 for HIGH, otherwise 24 }
+        triageOverdue: { type: boolean }
+    SafeguardingDetail:
+      type: object
+      properties:
+        summary: { $ref: '#/components/schemas/SafeguardingSummary' }
+        description: { type: string }
+        occurredOn: { type: string, format: date, nullable: true }
+        reportedBy: { type: string }
+        actions:
+          type: array
+          items:
+            type: object
+            properties:
+              from: { type: string }
+              to: { type: string, nullable: true }
+              note: { type: string, nullable: true }
+              by: { type: string }
+              at: { type: string, format: date-time }
     SupportCaseSummary:
       type: object
       properties:

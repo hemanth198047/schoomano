@@ -26,6 +26,9 @@ const AdmissionsPage = lazy(() =>
   import('./pages/AdmissionsPage').then((m) => ({ default: m.AdmissionsPage })),
 );
 const LearningPage = lazy(() => import('./pages/LearningPage').then((m) => ({ default: m.LearningPage })));
+const SafeguardingPage = lazy(() =>
+  import('./pages/SafeguardingPage').then((m) => ({ default: m.SafeguardingPage })),
+);
 const StudentSupportPage = lazy(() =>
   import('./pages/StudentSupportPage').then((m) => ({ default: m.StudentSupportPage })),
 );
@@ -161,6 +164,18 @@ function SignedIn() {
           element={
             <Suspense fallback={<LoadingState label="Opening syllabus and homework" />}>
               <LearningPage
+                me={me.data}
+                campuses={campuses.status === 'ready' ? campuses.data : []}
+                selectedCampusId={selectedCampusId}
+              />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/safeguarding"
+          element={
+            <Suspense fallback={<LoadingState label="Opening safeguarding" />}>
+              <SafeguardingPage
                 me={me.data}
                 campuses={campuses.status === 'ready' ? campuses.data : []}
                 selectedCampusId={selectedCampusId}

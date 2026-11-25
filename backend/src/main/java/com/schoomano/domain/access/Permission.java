@@ -37,6 +37,8 @@ public enum Permission {
     /** Confidential support cases about a child (M10). Never granted to guardians or ordinary teachers. */
     STUDENT_SUPPORT_READ(false),
     STUDENT_SUPPORT_WRITE(true),
+    /** Raise a safeguarding concern about a child. Write-only: it does not allow reading reports (M11). */
+    SAFEGUARDING_REPORT(true),
     TIMETABLE_READ(false),
     TIMETABLE_MANAGE(true),
     FEE_READ(false),

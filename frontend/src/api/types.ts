@@ -617,3 +617,31 @@ export interface SupportCaseDetail {
   closedReason: string | null;
   notes: { id: string; body: string; author: string; at: string }[];
 }
+
+export type SafeguardingStatus = 'REPORTED' | 'TRIAGED' | 'UNDER_REVIEW' | 'ESCALATED' | 'CLOSED';
+
+export interface SafeguardingReceipt {
+  id: string;
+  receivedAt: string;
+  message: string;
+}
+
+export interface SafeguardingSummary {
+  id: string;
+  studentId: string;
+  studentName: string;
+  category: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'IMMEDIATE';
+  status: SafeguardingStatus;
+  reportedAt: string;
+  triageDueAt: string;
+  triageOverdue: boolean;
+}
+
+export interface SafeguardingDetail {
+  summary: SafeguardingSummary;
+  description: string;
+  occurredOn: string | null;
+  reportedBy: string;
+  actions: { from: string; to: string | null; note: string | null; by: string; at: string }[];
+}
