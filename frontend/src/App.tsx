@@ -19,6 +19,9 @@ import { TodayPage } from './pages/TodayPage';
 const FeesPage = lazy(() => import('./pages/FeesPage').then((m) => ({ default: m.FeesPage })));
 const SupportPage = lazy(() => import('./pages/SupportPage').then((m) => ({ default: m.SupportPage })));
 const NoticesPage = lazy(() => import('./pages/NoticesPage').then((m) => ({ default: m.NoticesPage })));
+const AssessmentPage = lazy(() =>
+  import('./pages/AssessmentPage').then((m) => ({ default: m.AssessmentPage })),
+);
 const AttendancePage = lazy(() =>
   import('./pages/AttendancePage').then((m) => ({ default: m.AttendancePage })),
 );
@@ -127,6 +130,18 @@ function SignedIn() {
           element={
             <Suspense fallback={<LoadingState label="Opening attendance" />}>
               <AttendancePage
+                me={me.data}
+                campuses={campuses.status === 'ready' ? campuses.data : []}
+                selectedCampusId={selectedCampusId}
+              />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/assessment"
+          element={
+            <Suspense fallback={<LoadingState label="Opening marks and reports" />}>
+              <AssessmentPage
                 me={me.data}
                 campuses={campuses.status === 'ready' ? campuses.data : []}
                 selectedCampusId={selectedCampusId}

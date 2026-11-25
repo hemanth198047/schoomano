@@ -27,6 +27,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B8** (done, verified in CI) Fees | M14 | B3 | Fee plans per programme; invoices in paise; sandbox gateway with the school as merchant of record; duplicate and out-of-order webhooks keep ledger and receipts correct (spec §14); daily reconciliation report |
 | **B9** (in progress: server and app code done, device testing and staff sign-in outstanding) Mobile apps | M13, M06, M14 | B4–B8, ADR 0005 prototype | Parent: OTP sign-in, child switcher, attendance, notices, pay. Teacher: offline attendance. Cold start < 3 s on a 2 GB Android device; works through 30-minute offline periods |
 | **B10** (done, verified in CI) Support console | M30 | B4 | School-approved, time-limited support sessions visible to the school; full audit; health dashboard |
+| **B11** Assessment and report cards (done locally, CI pending) | M09 | B4 | Teacher enters marks; locked marks change only with a reason and history; report cards published as frozen snapshots on the grade scale in force; corrections are new revisions; guardians read their child's card |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 

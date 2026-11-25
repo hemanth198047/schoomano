@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { ApiError, type Client } from '../core/api';
 import { formatPaise } from '../core/money';
-import type { ChildAttendance, InboxItem, InvoiceSummary, Me, PaymentOrder } from '../core/types';
+import { reportLines } from '../core/report';
+import type { ChildAttendance, InboxItem, InvoiceSummary, Me, PaymentOrder, ReportCard } from '../core/types';
 import { Body, Button, Card, Heading, Notice } from '../ui';
 
 type Child = Me['children'][number];
@@ -48,6 +49,9 @@ function ChildView({ client, child }: { client: Client; child: Child }) {
       {child.capabilities.includes('VIEW_ATTENDANCE') && (
         <Attendance client={client} studentId={child.studentId} />
       )}
+      {child.capabilities.includes('VIEW_ACADEMIC') && (
+        <ReportCards client={client} studentId={child.studentId} />
+      )}
       {child.capabilities.includes('PAY_FEES') && <Fees client={client} studentId={child.studentId} />}
     </>
   );
@@ -81,6 +85,37 @@ function Attendance({ client, studentId }: { client: Client; studentId: string }
           {data.days.length === 0 && <Body muted>No attendance recorded yet.</Body>}
         </>
       )}
+    </Card>
+  );
+}
+
+function ReportCards({ client, studentId }: { client: Client; studentId: string }) {
+  const [cards, setCards] = useState<ReportCard[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    client
+      .request<ReportCard[]>(`/api/v1/students/${studentId}/report-cards`)
+      .then((d) => live && setCards(d))
+      .catch((e: unknown) => live && setError(oops(e)));
+    return () => {
+      live = false;
+    };
+  }, [client, studentId]);
+  return (
+    <Card>
+      <Heading>Report cards</Heading>
+      {error && <Notice kind="error">{error}</Notice>}
+      {!cards && !error && <Body muted>Loading…</Body>}
+      {cards?.length === 0 && <Body muted>No report cards published yet.</Body>}
+      {cards?.map((c) => (
+        <View key={c.id} style={{ marginBottom: 10 }}>
+          <Body strong>{`${c.termLabel}, ${c.sectionLabel}`}</Body>
+          {reportLines(c).map((l) => (
+            <Body key={l}>{l}</Body>
+          ))}
+        </View>
+      ))}
     </Card>
   );
 }

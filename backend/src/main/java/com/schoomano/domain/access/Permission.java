@@ -21,6 +21,11 @@ public enum Permission {
     ATTENDANCE_READ(false),
     ATTENDANCE_MARK(false),
     ATTENDANCE_CORRECT(true),
+    /** Marks and assessments of a class (M09). */
+    ASSESSMENT_READ(false),
+    ASSESSMENT_WRITE(true),
+    /** Publish or re-publish report cards (M09). */
+    REPORT_PUBLISH(true),
     TIMETABLE_READ(false),
     TIMETABLE_MANAGE(true),
     FEE_READ(false),

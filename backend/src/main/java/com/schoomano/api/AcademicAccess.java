@@ -60,6 +60,13 @@ class AcademicAccess {
         return y;
     }
 
+    /** Campus path of a class section's campus (404 when the section or its campus is not visible). */
+    ScopePath sectionPath(JdbcTemplate jdbc, RequestContext ctx, UUID sectionId) {
+        UUID yearId = jdbc.queryForList("select academic_year_id from class_section where id = ?", UUID.class, sectionId)
+            .stream().findFirst().orElseThrow(ApiException::notFound);
+        return campusPath(jdbc, ctx, loadYear(jdbc, ctx, yearId).campusId());
+    }
+
     /** Programme path of a grade (404 when the grade is not visible). */
     ScopePath gradePath(JdbcTemplate jdbc, RequestContext ctx, UUID gradeId) {
         UUID programmeId = jdbc.queryForList("select programme_id from grade_level where id = ?", UUID.class, gradeId)

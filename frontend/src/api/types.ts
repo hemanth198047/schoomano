@@ -465,3 +465,73 @@ export interface AuditVerification {
   brokenSeq: number | null;
   problem: string | null;
 }
+
+export type MarkKind = 'SCORED' | 'ABSENT' | 'EXEMPT';
+
+export interface AssessmentItem {
+  id: string;
+  sectionId: string;
+  subjectId: string;
+  subjectName: string;
+  termId: string;
+  termLabel: string;
+  name: string;
+  maxMarks: number;
+  weightPercent: number;
+  heldOn: string | null;
+  status: 'OPEN' | 'LOCKED';
+  marksEntered: number;
+  students: number;
+}
+
+export interface MarkRow {
+  studentId: string;
+  schoolRef: string;
+  name: string;
+  kind: MarkKind | null;
+  marks: number | null;
+  version: number | null;
+}
+
+export interface AssessmentMarks {
+  assessment: AssessmentItem;
+  marks: MarkRow[];
+}
+
+export interface MarksResult {
+  created: number;
+  changed: number;
+  unchanged: number;
+}
+
+export interface SubjectLine {
+  subjectId: string;
+  name: string;
+  percent: number;
+  grade: string;
+  assessments: number;
+}
+
+export interface StudentPreview {
+  studentId: string;
+  name: string;
+  subjects: SubjectLine[];
+  overallPercent: number;
+  overallGrade: string;
+  publishedRevision: number | null;
+  changed: boolean;
+}
+
+export interface ReportPreview {
+  sectionId: string;
+  termId: string;
+  ready: boolean;
+  blockers: string[];
+  gradeScaleVersion: number | null;
+  students: StudentPreview[];
+}
+
+export interface PublishResult {
+  published: number;
+  unchanged: number;
+}

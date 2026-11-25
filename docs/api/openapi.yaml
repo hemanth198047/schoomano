@@ -1403,6 +1403,207 @@ paths:
                         classLabel: { type: string }
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/sections/{sectionId}/assessments:
+    get:
+      tags: [Assessment]
+      summary: Assessments of a class, optionally for one term (ASSESSMENT_READ)
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: termId, in: query, required: false, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Assessments, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Assessment' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Assessment]
+      summary: Add an assessment (ASSESSMENT_WRITE). The subject and term must belong to the class's programme and year
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectId, termId, name, maxMarks, weightPercent]
+              properties:
+                subjectId: { type: string, format: uuid }
+                termId: { type: string, format: uuid }
+                name: { type: string, minLength: 2, maxLength: 80 }
+                maxMarks: { type: number, minimum: 0.01, maximum: 1000 }
+                weightPercent: { type: integer, minimum: 1, maximum: 100 }
+                heldOn: { type: string, format: date }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: An assessment with that name already exists for the subject and term, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/assessments/{assessmentId}/marks:
+    get:
+      tags: [Assessment]
+      summary: Every enrolled student with their mark, if any
+      parameters:
+        - { name: assessmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Marks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assessment: { $ref: '#/components/schemas/Assessment' }
+                  marks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        studentId: { type: string, format: uuid }
+                        schoolRef: { type: string }
+                        name: { type: string }
+                        kind: { type: string, enum: [SCORED, ABSENT, EXEMPT], nullable: true }
+                        marks: { type: number, nullable: true }
+                        version: { type: integer, nullable: true }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [Assessment]
+      summary: Enter or change marks in a batch (ASSESSMENT_WRITE). Once the assessment is locked a reason of at least 5 characters is required and every change is kept in the mark's history
+      parameters:
+        - { name: assessmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entries]
+              properties:
+                reason: { type: string, maxLength: 200 }
+                entries:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [studentId, kind]
+                    properties:
+                      studentId: { type: string, format: uuid }
+                      kind: { type: string, enum: [SCORED, ABSENT, EXEMPT] }
+                      marks: { type: number, nullable: true, description: Required for SCORED, between 0 and the maximum, at most two decimals. Must be absent for ABSENT and EXEMPT }
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created: { type: integer }
+                  changed: { type: integer }
+                  unchanged: { type: integer }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/assessments/{assessmentId}/lock:
+    post:
+      tags: [Assessment]
+      summary: Lock an assessment. It cannot be reopened; later changes need a reason (ASSESSMENT_WRITE)
+      parameters:
+        - { name: assessmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: The locked assessment, content: { application/json: { schema: { $ref: '#/components/schemas/Assessment' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/sections/{sectionId}/report-preview:
+    get:
+      tags: [Assessment]
+      summary: What the report cards would say, and what still blocks publishing (ASSESSMENT_READ)
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: termId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sectionId: { type: string, format: uuid }
+                  termId: { type: string, format: uuid }
+                  ready: { type: boolean }
+                  blockers: { type: array, items: { type: string } }
+                  gradeScaleVersion: { type: integer, nullable: true }
+                  students:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        studentId: { type: string, format: uuid }
+                        name: { type: string }
+                        subjects: { type: array, items: { $ref: '#/components/schemas/ReportSubject' } }
+                        overallPercent: { type: number }
+                        overallGrade: { type: string }
+                        publishedRevision: { type: integer, nullable: true }
+                        changed: { type: boolean, description: True when nothing is published yet or the result differs from the latest revision }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/sections/{sectionId}/report-cards/publish:
+    post:
+      tags: [Assessment]
+      summary: Publish report cards for a class and term (REPORT_PUBLISH). Only children whose result changed get a new revision; a revision needs a reason
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: termId, in: query, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  published: { type: integer }
+                  unchanged: { type: integer }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Not ready; the problem lists what is missing in "problems", content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/students/{studentId}/report-cards:
+    get:
+      tags: [Assessment]
+      summary: The latest published report card per term for one child, for a guardian with the view-academic capability or staff with academic read in scope
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Report cards, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    termId: { type: string, format: uuid }
+                    termLabel: { type: string }
+                    sectionLabel: { type: string }
+                    revision: { type: integer }
+                    revisionReason: { type: string, nullable: true }
+                    subjects: { type: array, items: { $ref: '#/components/schemas/ReportSubject' } }
+                    overallPercent: { type: number }
+                    overallGrade: { type: string }
+                    gradeScale: { type: object, description: The bands in force when the card was published }
+                    publishedAt: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -1638,6 +1839,30 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    Assessment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sectionId: { type: string, format: uuid }
+        subjectId: { type: string, format: uuid }
+        subjectName: { type: string }
+        termId: { type: string, format: uuid }
+        termLabel: { type: string }
+        name: { type: string }
+        maxMarks: { type: number }
+        weightPercent: { type: integer }
+        heldOn: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [OPEN, LOCKED] }
+        marksEntered: { type: integer }
+        students: { type: integer }
+    ReportSubject:
+      type: object
+      properties:
+        subjectId: { type: string, format: uuid }
+        name: { type: string }
+        percent: { type: number }
+        grade: { type: string }
+        assessments: { type: integer }
     SentNotice:
       type: object
       properties:

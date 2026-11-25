@@ -82,3 +82,24 @@ export interface CampusStructure {
   year: { id: string } | null;
   programmes: { grades: { name: string; sections: { id: string; code: string }[] }[] }[];
 }
+
+export interface ReportSubject {
+  subjectId: string;
+  name: string;
+  percent: number;
+  grade: string;
+  assessments: number;
+}
+
+export interface ReportCard {
+  id: string;
+  termId: string;
+  termLabel: string;
+  sectionLabel: string;
+  revision: number;
+  revisionReason: string | null;
+  subjects: ReportSubject[];
+  overallPercent: number;
+  overallGrade: string;
+  publishedAt: string;
+}

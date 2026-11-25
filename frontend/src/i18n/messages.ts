@@ -11,6 +11,7 @@ export const en = {
   'nav.notices': 'Notices',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
+  'nav.assessment': 'Marks and reports',
   'nav.timetable': 'Timetable',
   'nav.imports': 'Imports',
   'nav.support': 'Support and audit',
