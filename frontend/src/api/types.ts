@@ -535,3 +535,38 @@ export interface PublishResult {
   published: number;
   unchanged: number;
 }
+
+export type AdmissionStatus =
+  'ENQUIRY' | 'APPLIED' | 'OFFERED' | 'ACCEPTED' | 'ENROLLED' | 'DECLINED' | 'WITHDRAWN' | 'REJECTED';
+
+export interface AdmissionItem {
+  id: string;
+  yearId: string;
+  gradeLevelId: string;
+  gradeName: string;
+  programmeCode: string;
+  childName: string;
+  dateOfBirth: string | null;
+  guardianName: string;
+  guardianMobile: string;
+  guardianEmail: string | null;
+  source: string;
+  notes: string | null;
+  status: AdmissionStatus;
+  studentId: string | null;
+  createdAt: string;
+}
+
+export interface AdmissionSeats {
+  gradeLevelId: string;
+  gradeName: string;
+  programmeCode: string;
+  capacity: number | null;
+  enrolled: number;
+  held: number;
+}
+
+export interface AdmissionListing {
+  items: AdmissionItem[];
+  seats: AdmissionSeats[];
+}

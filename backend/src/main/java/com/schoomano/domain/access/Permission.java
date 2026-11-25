@@ -26,6 +26,9 @@ public enum Permission {
     ASSESSMENT_WRITE(true),
     /** Publish or re-publish report cards (M09). */
     REPORT_PUBLISH(true),
+    /** Enquiries, applications and offers for a campus (M02). */
+    ADMISSION_READ(false),
+    ADMISSION_MANAGE(true),
     TIMETABLE_READ(false),
     TIMETABLE_MANAGE(true),
     FEE_READ(false),

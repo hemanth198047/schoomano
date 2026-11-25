@@ -1604,6 +1604,142 @@ paths:
                     gradeScale: { type: object, description: The bands in force when the card was published }
                     publishedAt: { type: string, format: date-time }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/admissions:
+    get:
+      tags: [Admissions]
+      summary: Applications for a year, optionally by status, with seats by grade (ADMISSION_READ)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [ENQUIRY, APPLIED, OFFERED, ACCEPTED, ENROLLED, DECLINED, WITHDRAWN, REJECTED] } }
+      responses:
+        '200':
+          description: Applications and seats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/AdmissionApplication' } }
+                  seats:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        gradeLevelId: { type: string, format: uuid }
+                        gradeName: { type: string }
+                        programmeCode: { type: string }
+                        capacity: { type: integer, nullable: true, description: Null when a class of the grade has no limit }
+                        enrolled: { type: integer }
+                        held: { type: integer, description: Offered or accepted but not yet enrolled }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Admissions]
+      summary: Record an enquiry (ADMISSION_MANAGE). One open application per child and guardian mobile
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gradeLevelId, childGivenName, guardianGivenName, guardianMobile, source]
+              properties:
+                gradeLevelId: { type: string, format: uuid }
+                childGivenName: { type: string }
+                childFamilyName: { type: string }
+                dateOfBirth: { type: string, format: date }
+                guardianGivenName: { type: string }
+                guardianFamilyName: { type: string }
+                guardianMobile: { type: string, description: Indian mobile, 10 digits }
+                guardianEmail: { type: string }
+                source: { type: string, enum: [WALK_IN, PHONE, WEBSITE, REFERRAL, OTHER] }
+                notes: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/AdmissionApplication' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: An open application already exists, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/admissions/{id}:
+    get:
+      tags: [Admissions]
+      summary: One application with its full history (ADMISSION_READ)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Application and history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  application: { $ref: '#/components/schemas/AdmissionApplication' }
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        from: { type: string, nullable: true }
+                        to: { type: string }
+                        reason: { type: string, nullable: true }
+                        by: { type: string }
+                        at: { type: string, format: date-time }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/admissions/{id}/transition:
+    post:
+      tags: [Admissions]
+      summary: Move an application one stage on, or end it (ADMISSION_MANAGE). Rejecting, declining or withdrawing needs a reason; an offer with no seats left needs overrideSeats and a reason
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to: { type: string, enum: [APPLIED, OFFERED, ACCEPTED, DECLINED, WITHDRAWN, REJECTED] }
+                reason: { type: string, maxLength: 500 }
+                overrideSeats: { type: boolean }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/AdmissionApplication' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Not a valid move from the current stage, or no seats left, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/admissions/{id}/enrol:
+    post:
+      tags: [Admissions]
+      summary: Enrol an accepted child into a class of the grade applied for (ADMISSION_MANAGE). Creates the student, the guardian link (all capabilities except pickup) and the placement
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sectionId]
+              properties:
+                sectionId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Enrolled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applicationId: { type: string, format: uuid }
+                  studentId: { type: string, format: uuid }
+                  schoolRef: { type: string }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Not accepted yet, or the class is full, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -1839,6 +1975,24 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    AdmissionApplication:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        yearId: { type: string, format: uuid }
+        gradeLevelId: { type: string, format: uuid }
+        gradeName: { type: string }
+        programmeCode: { type: string }
+        childName: { type: string }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        guardianName: { type: string }
+        guardianMobile: { type: string }
+        guardianEmail: { type: string, nullable: true }
+        source: { type: string }
+        notes: { type: string, nullable: true }
+        status: { type: string, enum: [ENQUIRY, APPLIED, OFFERED, ACCEPTED, ENROLLED, DECLINED, WITHDRAWN, REJECTED] }
+        studentId: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
     Assessment:
       type: object
       properties:
