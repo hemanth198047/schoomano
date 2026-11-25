@@ -37,7 +37,7 @@ public final class RoleCatalog {
             "finance_officer", EnumSet.of(CAMPUS_READ, STUDENT_READ_BASIC, FEE_READ, FEE_MANAGE),
             "transport_attendant", EnumSet.of(STUDENT_READ_BASIC, HEALTH_OPERATIONAL_FLAG_READ),
             "nurse", EnumSet.of(STUDENT_READ_BASIC, HEALTH_OPERATIONAL_FLAG_READ, HEALTH_RECORD_READ),
-            "safeguarding_lead", EnumSet.of(STUDENT_READ_BASIC, SAFEGUARDING_CASE_READ, SAFEGUARDING_REPORT)));
+            "safeguarding_lead", EnumSet.of(CAMPUS_READ, STUDENT_READ_BASIC, SAFEGUARDING_CASE_READ, SAFEGUARDING_REPORT)));
     }
 
     public Set<Permission> permissionsOf(String roleKey) {
