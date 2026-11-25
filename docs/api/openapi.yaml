@@ -2041,6 +2041,76 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: Step not allowed from here, or report closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/students/{studentId}/health-record:
+    get:
+      tags: [Health]
+      summary: A child's full health record and recent infirmary visits (restricted health partition, so the nurse only). Every read is audited
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Record, content: { application/json: { schema: { $ref: '#/components/schemas/HealthRecord' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [Health]
+      summary: Create or replace the health record (nurse only). The emergency flag is the one short line other staff can see
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bloodGroup: { type: string, enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] }
+                allergies: { type: string, maxLength: 2000 }
+                conditions: { type: string, maxLength: 2000 }
+                medicines: { type: string, maxLength: 2000 }
+                emergencyFlag: { type: string, minLength: 2, maxLength: 80 }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/HealthRecord' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/health-visits:
+    post:
+      tags: [Health]
+      summary: Log an infirmary visit (nurse only). Visits are permanent
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [complaint, outcome]
+              properties:
+                complaint: { type: string, minLength: 2, maxLength: 1000 }
+                actionTaken: { type: string, maxLength: 1000 }
+                outcome: { type: string, enum: [RETURNED_TO_CLASS, SENT_HOME, REFERRED, OTHER] }
+                guardianInformed: { type: boolean }
+      responses:
+        '201': { description: Logged }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/health-flag:
+    get:
+      tags: [Health]
+      summary: A child's emergency flag only (HEALTH_OPERATIONAL_FLAG_READ, held by teachers, principal, campus administrators, nurse)
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Flag, content: { application/json: { schema: { $ref: '#/components/schemas/HealthFlag' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/health-flags:
+    get:
+      tags: [Health]
+      summary: Children with an emergency flag in a year. Flags only, never the record
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Flags, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HealthFlag' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -2311,6 +2381,36 @@ components:
               note: { type: string, nullable: true }
               by: { type: string }
               at: { type: string, format: date-time }
+    HealthFlag:
+      type: object
+      properties:
+        studentId: { type: string, format: uuid }
+        studentName: { type: string }
+        flag: { type: string, nullable: true }
+    HealthRecord:
+      type: object
+      properties:
+        studentId: { type: string, format: uuid }
+        studentName: { type: string }
+        bloodGroup: { type: string, nullable: true }
+        allergies: { type: string, nullable: true }
+        conditions: { type: string, nullable: true }
+        medicines: { type: string, nullable: true }
+        emergencyFlag: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        updatedBy: { type: string, nullable: true }
+        visits:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              visitedAt: { type: string, format: date-time }
+              complaint: { type: string }
+              actionTaken: { type: string, nullable: true }
+              outcome: { type: string, enum: [RETURNED_TO_CLASS, SENT_HOME, REFERRED, OTHER] }
+              guardianInformed: { type: boolean }
+              recordedBy: { type: string }
     SupportCaseSummary:
       type: object
       properties:

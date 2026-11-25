@@ -645,3 +645,32 @@ export interface SafeguardingDetail {
   reportedBy: string;
   actions: { from: string; to: string | null; note: string | null; by: string; at: string }[];
 }
+
+export interface HealthVisit {
+  id: string;
+  visitedAt: string;
+  complaint: string;
+  actionTaken: string | null;
+  outcome: 'RETURNED_TO_CLASS' | 'SENT_HOME' | 'REFERRED' | 'OTHER';
+  guardianInformed: boolean;
+  recordedBy: string;
+}
+
+export interface HealthRecord {
+  studentId: string;
+  studentName: string;
+  bloodGroup: string | null;
+  allergies: string | null;
+  conditions: string | null;
+  medicines: string | null;
+  emergencyFlag: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  visits: HealthVisit[];
+}
+
+export interface HealthFlag {
+  studentId: string;
+  studentName: string;
+  flag: string | null;
+}

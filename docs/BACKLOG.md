@@ -32,6 +32,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B13** (done, verified in CI) Curriculum and learning | M07, M08 | B4 | Syllabus per grade and subject, permanent coverage per class, homework visible to guardians with view-academic |
 | **B14** (done, verified in CI) Student support | M10 | B4 | Confidential cases for enrolled children, permanent notes, review dates, closure with a reason, reads audited; principal and administrators only |
 | **B15** (done, verified in CI) Safeguarding | M11 | B4 | Staff report concerns and get a receipt only; the designated lead reads, triages, escalates and closes through fixed steps with notes; overdue triage flagged; reads audited |
+| **B16** (done, CI pending) Health | M12 | B4 | Nurse-only health record and infirmary log in the restricted health partition; teachers and administrators see only a one-line emergency flag; reads and saves audited |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 

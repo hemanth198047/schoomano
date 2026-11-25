@@ -13,6 +13,7 @@ export const en = {
   'nav.learning': 'Syllabus and homework',
   'nav.studentSupport': 'Student support',
   'nav.safeguarding': 'Safeguarding',
+  'nav.health': 'Health',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',
