@@ -997,3 +997,20 @@ export interface ExpectedVisit {
   host: string;
   status: 'EXPECTED' | 'ARRIVED' | 'CANCELLED';
 }
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  hint: string;
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  status: 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+  createdBy: string | null;
+}
+
+export interface ApiKeyIssued {
+  key: ApiKey;
+  secret: string;
+}

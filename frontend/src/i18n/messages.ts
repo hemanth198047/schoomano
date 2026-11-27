@@ -23,6 +23,7 @@ export const en = {
   'nav.compliance': 'Compliance',
   'nav.insights': 'Insights',
   'nav.visitors': 'Visitors',
+  'nav.integrations': 'Integrations',
   'nav.workflow': 'Approvals',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',

@@ -15,7 +15,9 @@ final class SessionTokens {
 
     static final String ACCESS_PREFIX = "smo_";
     static final String REFRESH_PREFIX = "smr_";
+    static final String API_KEY_PREFIX = "smk_";
     private static final Pattern ACCESS = Pattern.compile("^smo_[A-Za-z0-9_-]{43}$");
+    private static final Pattern API_KEY = Pattern.compile("^smk_[A-Za-z0-9_-]{43}$");
     private static final Pattern REFRESH = Pattern.compile("^smr_[A-Za-z0-9_-]{43}$");
 
     private SessionTokens() {
@@ -31,6 +33,14 @@ final class SessionTokens {
 
     static boolean isAccessToken(String token) {
         return token != null && ACCESS.matcher(token).matches();
+    }
+
+    static String newApiKey(SecureRandom random) {
+        return API_KEY_PREFIX + random(random);
+    }
+
+    static boolean isApiKey(String token) {
+        return token != null && API_KEY.matcher(token).matches();
     }
 
     static boolean isRefreshToken(String token) {

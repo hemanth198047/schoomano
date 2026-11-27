@@ -28,6 +28,9 @@ const AdmissionsPage = lazy(() =>
 const LearningPage = lazy(() => import('./pages/LearningPage').then((m) => ({ default: m.LearningPage })));
 const InsightsPage = lazy(() => import('./pages/InsightsPage').then((m) => ({ default: m.InsightsPage })));
 const WorkflowPage = lazy(() => import('./pages/WorkflowPage').then((m) => ({ default: m.WorkflowPage })));
+const IntegrationsPage = lazy(() =>
+  import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })),
+);
 const VisitorsPage = lazy(() => import('./pages/VisitorsPage').then((m) => ({ default: m.VisitorsPage })));
 const CompliancePage = lazy(() =>
   import('./pages/CompliancePage').then((m) => ({ default: m.CompliancePage })),
@@ -233,6 +236,18 @@ function SignedIn() {
           element={
             <Suspense fallback={<LoadingState label="Opening visitors" />}>
               <VisitorsPage
+                me={me.data}
+                campuses={campuses.status === 'ready' ? campuses.data : []}
+                selectedCampusId={selectedCampusId}
+              />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <Suspense fallback={<LoadingState label="Opening integrations" />}>
+              <IntegrationsPage
                 me={me.data}
                 campuses={campuses.status === 'ready' ? campuses.data : []}
                 selectedCampusId={selectedCampusId}

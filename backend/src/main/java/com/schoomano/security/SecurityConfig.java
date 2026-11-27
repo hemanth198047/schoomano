@@ -23,7 +23,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain api(HttpSecurity http, AppProperties props, Environment env, SignInService signIn) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, AppProperties props, Environment env, SignInService signIn, ApiKeyService apiKeys) throws Exception {
         http
             // Stateless bearer-token API: no cookies, so CSRF tokens do not apply.
             .csrf(csrf -> csrf.disable())
@@ -39,7 +39,9 @@ public class SecurityConfig {
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             // Parent sessions ("Bearer smo_...") from the phone OTP; works with both staff sign-in modes below.
-            .addFilterBefore(new SessionTokenFilter(signIn), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new SessionTokenFilter(signIn), UsernamePasswordAuthenticationFilter.class)
+            // Integration API keys ("Bearer smk_..."): read-only service identities.
+            .addFilterBefore(new ApiKeyFilter(apiKeys), UsernamePasswordAuthenticationFilter.class);
 
         if (props.auth() != null && props.auth().devMode()) {
             if (Arrays.asList(env.getActiveProfiles()).contains("prod")) {
@@ -54,7 +56,8 @@ public class SecurityConfig {
             http.oauth2ResourceServer(o -> o
                 .bearerTokenResolver(request -> {
                     String header = request.getHeader("Authorization");
-                    return header != null && header.startsWith("Bearer " + SessionTokens.ACCESS_PREFIX)
+                    return header != null && (header.startsWith("Bearer " + SessionTokens.ACCESS_PREFIX)
+                        || header.startsWith("Bearer " + SessionTokens.API_KEY_PREFIX))
                         ? null : jwtTokens.resolve(request);
                 })
                 .jwt(Customizer.withDefaults()));
