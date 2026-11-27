@@ -9,13 +9,13 @@ import com.schoomano.platform.Authorizer;
 import com.schoomano.platform.RequestContext;
 import com.schoomano.platform.TenantTx;
 import com.schoomano.platform.WebhookUrls;
-import com.schoomano.security.SessionTokens;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.security.SecureRandom;
 import java.sql.Array;
+import java.util.Base64;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -100,7 +100,9 @@ public class WebhookController {
         }
         return tenantTx.run(ctx.tenant(), jdbc -> {
             require(jdbc, ctx);
-            String secret = "whsec_" + SessionTokens.newApiKey(RANDOM).substring(4);
+            byte[] raw = new byte[32];
+            RANDOM.nextBytes(raw);
+            String secret = "whsec_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
             UUID id = jdbc.queryForObject("""
                 insert into webhook_endpoint (tenant_id, name, url, secret, event_types, created_by)
                 values (?, ?, ?, ?, ?::text[], ?) returning id
