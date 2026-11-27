@@ -57,7 +57,8 @@ class TripApiIT extends ApiITSupport {
         mvc.perform(json(post(list), "dev-meera", body)).andExpect(status().isNotFound());
         mvc.perform(json(post(list), "dev-tp-f01", body.replace("\"consentDeadline\":\"" + today + "\"", "\"consentDeadline\":\"" + today.plusDays(1) + "\"")))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("deadline_after_trip"));
-        mvc.perform(json(post(list), "dev-tp-f01", body.replace("\"tripDate\":\"" + today + "\"", "\"tripDate\":\"" + today.minusDays(2) + "\"")))
+        mvc.perform(json(post(list), "dev-tp-f01", body.replace("\"tripDate\":\"" + today + "\"", "\"tripDate\":\"" + today.minusDays(2) + "\"")
+                .replace("\"consentDeadline\":\"" + today + "\"", "\"consentDeadline\":\"" + today.minusDays(3) + "\"")))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("trip_in_past"));
         String trip = JsonPath.read(create(list, "dev-tp-f01", body), "$.id");
         mvc.perform(as(get(list), "dev-tp-f02")).andExpect(status().isOk());
