@@ -902,3 +902,29 @@ export interface ComplianceEvidence {
   recordedBy: string;
   recordedAt: string;
 }
+
+export interface AnalyticsOverview {
+  yearId: string;
+  yearLabel: string;
+  enrolment: { enrolled: number; withdrawn: number; transferredOut: number; completed: number };
+  attendance: {
+    from: string;
+    to: string;
+    sessions: number;
+    marks: number;
+    attended: number;
+    absent: number;
+    percent: number | null;
+    days: { date: string; marks: number; attended: number; percent: number | null }[];
+    sections: { section: string; marks: number; attended: number; percent: number | null }[];
+  };
+  fees: {
+    invoices: number;
+    billedPaise: number;
+    collectedPaise: number;
+    outstandingPaise: number;
+    collectedPercent: number | null;
+    overdueInvoices: number;
+    overduePaise: number;
+  };
+}

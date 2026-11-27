@@ -69,6 +69,7 @@ public enum Permission {
     COMPLIANCE_READ(false),
     COMPLIANCE_MANAGE(true),
     COMPLIANCE_EVIDENCE(true),
+    ANALYTICS_READ(false),
     CONSENT_GIVE(true),
     NOTICE_RECEIVE(false),
     NOTICE_SEND(true),

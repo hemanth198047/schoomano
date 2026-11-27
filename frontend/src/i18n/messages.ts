@@ -21,6 +21,7 @@ export const en = {
   'nav.trips': 'Trips',
   'nav.facilities': 'Facilities',
   'nav.compliance': 'Compliance',
+  'nav.insights': 'Insights',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

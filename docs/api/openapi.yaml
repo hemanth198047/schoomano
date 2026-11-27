@@ -2999,6 +2999,18 @@ paths:
         '400': { description: invalid_evidence, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: item_retired, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/academic-years/{yearId}/analytics:
+    get:
+      tags: [Analytics]
+      summary: Campus summary of one academic year from enrolment, attendance and fees (ANALYTICS_READ). Counts and totals only; no figure names a child, and safeguarding, health and support records are not summarised. Attendance counts present and late as attended and covers at most 92 days, default the last 30
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Summary, content: { application/json: { schema: { $ref: '#/components/schemas/AnalyticsOverview' } } } }
+        '400': { description: invalid_range, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -4282,3 +4294,42 @@ components:
         validUntil: { type: string, format: date, nullable: true }
         recordedBy: { type: string }
         recordedAt: { type: string, format: date-time }
+    AnalyticsOverview:
+      type: object
+      properties:
+        yearId: { type: string, format: uuid }
+        yearLabel: { type: string }
+        enrolment:
+          type: object
+          properties:
+            enrolled: { type: integer }
+            withdrawn: { type: integer }
+            transferredOut: { type: integer }
+            completed: { type: integer }
+        attendance:
+          type: object
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+            sessions: { type: integer }
+            marks: { type: integer }
+            attended: { type: integer }
+            absent: { type: integer }
+            percent: { type: number, nullable: true, description: One decimal place; null when there are no marks }
+            days:
+              type: array
+              items: { type: object, properties: { date: { type: string, format: date }, marks: { type: integer }, attended: { type: integer }, percent: { type: number, nullable: true } } }
+            sections:
+              type: array
+              description: Lowest attendance first
+              items: { type: object, properties: { section: { type: string }, marks: { type: integer }, attended: { type: integer }, percent: { type: number, nullable: true } } }
+        fees:
+          type: object
+          properties:
+            invoices: { type: integer }
+            billedPaise: { type: integer }
+            collectedPaise: { type: integer }
+            outstandingPaise: { type: integer }
+            collectedPercent: { type: number, nullable: true }
+            overdueInvoices: { type: integer }
+            overduePaise: { type: integer }
