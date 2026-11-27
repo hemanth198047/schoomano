@@ -3666,7 +3666,7 @@ components:
       type: object
       properties:
         id: { type: string, format: uuid, description: The delivery id, used to mark it read }
-        kind: { type: string, enum: [ANNOUNCEMENT, ATTENDANCE, SUBSTITUTION] }
+        kind: { type: string, enum: [ANNOUNCEMENT, ATTENDANCE, SUBSTITUTION, APPROVAL] }
         title: { type: string }
         body: { type: string }
         receivedAt: { type: string, format: date-time }

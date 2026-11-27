@@ -37,6 +37,12 @@ class WorkflowApiIT extends ApiITSupport {
             """.formatted(id, TENANT, subject, role, CAMPUS));
     }
 
+
+    private static long told(String person, String title) throws Exception {
+        return ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.kind = 'APPROVAL' and d.channel = 'IN_APP' and n.title = '"
+            + title + "' and d.recipient_person_id = '13000000-0000-4000-8000-000000000" + person + "'");
+    }
+
     private String create(String url, String who, String body) throws Exception {
         return mvc.perform(json(post(url), who, body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
     }
@@ -73,6 +79,10 @@ class WorkflowApiIT extends ApiITSupport {
         mvc.perform(json(post(requests), "dev-meera", body)).andExpect(status().isNotFound());
         String reqId = JsonPath.read(create(requests, "dev-wf-g02", body), "$.id");
         String decide = "/api/v1/workflow-requests/" + reqId + "/decision";
+        assertEquals(1, told("d13", "Approval waiting: IT Museum trip bus"));
+        assertEquals(0, told("d14", "Approval waiting: IT Museum trip bus"));
+        assertEquals(0, told("d12", "Approval waiting: IT Museum trip bus"));
+        mvc.perform(as(get("/api/v1/notices/mine"), "dev-wf-g03")).andExpect(jsonPath("$[?(@.title=='Approval waiting: IT Museum trip bus')].kind").value("APPROVAL"));
         mvc.perform(as(get(requests + "?view=mine"), "dev-wf-g02")).andExpect(jsonPath("$[?(@.id=='" + reqId + "')].waitingFor").value("Principal"));
         mvc.perform(as(get(requests + "?view=inbox"), "dev-wf-g03")).andExpect(jsonPath("$[?(@.id=='" + reqId + "')].subject").value("IT Museum trip bus"));
         mvc.perform(as(get(requests + "?view=inbox"), "dev-wf-g04")).andExpect(jsonPath("$[?(@.id=='" + reqId + "')]").isEmpty());
@@ -81,9 +91,12 @@ class WorkflowApiIT extends ApiITSupport {
         mvc.perform(json(post(decide), "dev-wf-g03", "{\"decision\":\"MAYBE\"}")).andExpect(status().isBadRequest());
         mvc.perform(json(post(decide), "dev-wf-g03", "{\"decision\":\"APPROVED\",\"note\":\"Fine\"}")).andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PENDING")).andExpect(jsonPath("$.currentStep").value(2)).andExpect(jsonPath("$.waitingFor").value("Finance"));
+        assertEquals(1, told("d14", "Approval waiting: IT Museum trip bus"));
+        assertEquals(0, told("d12", "Approved: IT Museum trip bus"));
         mvc.perform(json(post(decide), "dev-wf-g03", "{\"decision\":\"APPROVED\"}")).andExpect(status().isNotFound());
         mvc.perform(json(post(decide), "dev-wf-g04", "{\"decision\":\"APPROVED\"}")).andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("APPROVED")).andExpect(jsonPath("$.closedAt").exists());
+        assertEquals(1, told("d12", "Approved: IT Museum trip bus"));
         mvc.perform(json(post(decide), "dev-wf-g04", "{\"decision\":\"APPROVED\"}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("request_closed"));
         mvc.perform(as(get("/api/v1/workflow-requests/" + reqId), "dev-wf-g02")).andExpect(status().isOk()).andExpect(jsonPath("$.steps[0].decision").value("APPROVED"));
         mvc.perform(as(get("/api/v1/workflow-requests/" + reqId), "dev-meera")).andExpect(status().isNotFound());
@@ -94,6 +107,7 @@ class WorkflowApiIT extends ApiITSupport {
         mvc.perform(json(post(decide2), "dev-wf-g03", "{\"decision\":\"REJECTED\"}")).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("note_required"));
         mvc.perform(json(post(decide2), "dev-wf-g03", "{\"decision\":\"REJECTED\",\"note\":\"Over budget\"}")).andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("REJECTED"));
+        assertEquals(1, told("d12", "Rejected: IT Museum trip tickets"));
 
         // The requester may withdraw only their own open request.
         String third = JsonPath.read(create(requests, "dev-wf-g02", body.replace("bus", "lunch")), "$.id");

@@ -43,8 +43,10 @@ public class WorkflowController {
     private final Authorizer authz;
     private final AuditWriter audit;
     private final AcademicAccess access;
+    private final ApprovalNotifier notifier;
 
-    public WorkflowController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access) {
+    public WorkflowController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access, ApprovalNotifier notifier) {
+        this.notifier = notifier;
         this.tenantTx = tenantTx;
         this.authz = authz;
         this.audit = audit;
@@ -144,6 +146,7 @@ public class WorkflowController {
                     """, UUID.class, ctx.tenant().value(), campusId, req.chainId(), ctx.actor().personId(), req.subject().trim(),
                     req.details() == null || req.details().isBlank() ? null : req.details().trim());
                 audit.write(jdbc, ctx, "workflow.request_submitted", "workflow_request", id.toString(), "SUCCESS", null, Map.of());
+                notifier.waiting(jdbc, id);
                 return request(jdbc, ctx, id);
             } catch (DataIntegrityViolationException e) {
                 throw ApiException.badRequest("unknown_chain", "Choose a published approval chain of this campus.");
@@ -216,8 +219,12 @@ public class WorkflowController {
             } else {
                 jdbc.update("update workflow_request set current_step = ? where id = ?", step + 1, id);
             }
-            if (!"PENDING".equals(jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id))) {
-                settleLinked(jdbc, ctx, id, jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id), req.note());
+            String after = jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id);
+            if (!"PENDING".equals(after)) {
+                settleLinked(jdbc, ctx, id, after, req.note());
+                notifier.decided(jdbc, id, req.note());
+            } else {
+                notifier.waiting(jdbc, id);
             }
             audit.write(jdbc, ctx, "workflow.request_" + req.decision().toLowerCase(), "workflow_request", id.toString(), "SUCCESS", null, Map.of("step", step));
             return request(jdbc, ctx, id);

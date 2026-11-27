@@ -46,8 +46,10 @@ public class HrController {
     private final Authorizer authz;
     private final AuditWriter audit;
     private final AcademicAccess access;
+    private final ApprovalNotifier notifier;
 
-    public HrController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access) {
+    public HrController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access, ApprovalNotifier notifier) {
+        this.notifier = notifier;
         this.tenantTx = tenantTx;
         this.authz = authz;
         this.audit = audit;
@@ -214,6 +216,9 @@ public class HrController {
                 throw new ApiException(HttpStatus.CONFLICT, "overlap", "You already have leave requested or approved on some of those days.");
             }
             audit.write(jdbc, ctx, "hr.leave_requested", "leave_request", id.toString(), "SUCCESS", null, Map.of("days", days));
+            if (workflowId != null) {
+                notifier.waiting(jdbc, workflowId);
+            }
             return view(jdbc, id);
         });
     }

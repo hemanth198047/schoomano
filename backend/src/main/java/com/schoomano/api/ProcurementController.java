@@ -48,8 +48,10 @@ public class ProcurementController {
     private final Authorizer authz;
     private final AuditWriter audit;
     private final AcademicAccess access;
+    private final ApprovalNotifier notifier;
 
-    public ProcurementController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access) {
+    public ProcurementController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access, ApprovalNotifier notifier) {
+        this.notifier = notifier;
         this.tenantTx = tenantTx;
         this.authz = authz;
         this.audit = audit;
@@ -178,6 +180,9 @@ public class ProcurementController {
             jdbc.update("insert into purchase_event (tenant_id, request_id, to_status, actor_person_id) values (?, ?, 'SUBMITTED', ?)",
                 ctx.tenant().value(), id, ctx.actor().personId());
             audit.write(jdbc, ctx, "procurement.requested", "purchase_request", id.toString(), "SUCCESS", null, Map.of("amountPaise", req.amountPaise()));
+            if (workflowId != null) {
+                notifier.waiting(jdbc, workflowId);
+            }
             return view(jdbc, id);
         });
     }
