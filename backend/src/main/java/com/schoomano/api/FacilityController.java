@@ -204,7 +204,7 @@ public class FacilityController {
                    trim(coalesce(p.given_name, '') || ' ' || coalesce(p.family_name, '')), b.booked_by, b.status
               from room_booking b join room r on r.tenant_id = b.tenant_id and r.id = b.room_id
                    join person p on p.tenant_id = b.tenant_id and p.id = b.booked_by
-             where """ + where + " order by b.starts_at", map, args);
+             where """ + " " + where + " order by b.starts_at", map, args);
     }
 
     private List<IssueView> issues(JdbcTemplate jdbc, String where, Object... args) {
@@ -216,6 +216,6 @@ public class FacilityController {
                    trim(coalesce(p.given_name, '') || ' ' || coalesce(p.family_name, '')), m.reported_at, m.resolution, m.resolved_at
               from maintenance_request m left join room r on r.tenant_id = m.tenant_id and r.id = m.room_id
                    join person p on p.tenant_id = m.tenant_id and p.id = m.reported_by
-             where """ + where + " order by m.status = 'RESOLVED', case m.priority when 'URGENT' then 0 when 'NORMAL' then 1 else 2 end, m.reported_at desc", map, args);
+             where """ + " " + where + " order by m.status = 'RESOLVED', case m.priority when 'URGENT' then 0 when 'NORMAL' then 1 else 2 end, m.reported_at desc", map, args);
     }
 }
