@@ -46,9 +46,9 @@ class ComplianceApiIT extends ApiITSupport {
 
     @Test
     void campusKeepsObligationsAndEvidenceMovesTheDueDate() throws Exception {
-        staff("c01", "dev-cp-c01", "campus_admin");
-        staff("c02", "dev-cp-c02", "principal");
-        staff("c03", "dev-cp-c03", "teacher");
+        staff("e11", "dev-cp-c01", "campus_admin");
+        staff("e12", "dev-cp-c02", "principal");
+        staff("e13", "dev-cp-c03", "teacher");
         java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
         String items = "/api/v1/campuses/" + CAMPUS + "/compliance-items";
         String fire = "{\"title\":\"IT Fire certificate\",\"category\":\"FIRE_SAFETY\",\"ownerName\":\"Estates head\",\"repeatMonths\":12,\"firstDueOn\":\"" + today.minusDays(5) + "\"}";

@@ -2929,7 +2929,7 @@ paths:
   /api/v1/campuses/{campusId}/compliance-items:
     get:
       tags: [Compliance]
-      summary: The campus compliance register with each item's standing computed in India time: OVERDUE, DUE_SOON (within 30 days), CURRENT, DONE or RETIRED (COMPLIANCE_READ)
+      summary: The campus compliance register with each item's standing computed in India time as OVERDUE, DUE_SOON (within 30 days), CURRENT, DONE or RETIRED (COMPLIANCE_READ)
       parameters:
         - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
