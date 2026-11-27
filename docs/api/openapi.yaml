@@ -2344,6 +2344,7 @@ paths:
                 fromDate: { type: string, format: date }
                 toDate: { type: string, format: date }
                 reason: { type: string, maxLength: 1000 }
+                chainId: { type: string, format: uuid, nullable: true, description: A published approval chain of the campus. When given the leave is decided only through the chain }
       responses:
         '201': { description: Requested, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequest' } } } }
         '400': { $ref: '#/components/responses/Problem' }
@@ -3517,6 +3518,8 @@ components:
         decidedBy: { type: string, nullable: true }
         decisionNote: { type: string, nullable: true }
         requestedAt: { type: string, format: date-time }
+        workflowRequestId: { type: string, format: uuid, nullable: true }
+        waitingFor: { type: string, nullable: true, description: The chain step the request is waiting at }
     SupportCaseSummary:
       type: object
       properties:

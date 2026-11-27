@@ -67,12 +67,13 @@ public class HrController {
     public record BalanceView(String leaveType, BigDecimal allowance, BigDecimal approved, BigDecimal pending, BigDecimal remaining) { }
 
     public record LeaveCreate(@NotNull @Pattern(regexp = "CASUAL|SICK|EARNED|UNPAID") String leaveType, @NotNull LocalDate fromDate,
-                              @NotNull LocalDate toDate, @Size(max = 1000) String reason) { }
+                              @NotNull LocalDate toDate, @Size(max = 1000) String reason, UUID chainId) { }
 
     public record Decision(@NotNull @Pattern(regexp = "APPROVE|REJECT|CANCEL") String decision, @Size(max = 1000) String note) { }
 
     public record LeaveView(UUID id, UUID personId, String name, String leaveType, LocalDate fromDate, LocalDate toDate, BigDecimal days,
-                            String reason, String status, String decidedBy, String decisionNote, OffsetDateTime requestedAt) { }
+                            String reason, String status, String decidedBy, String decisionNote, OffsetDateTime requestedAt,
+                            UUID workflowRequestId, String waitingFor) { }
 
     private record Leave(UUID id, UUID personId, UUID campusId, String status) { }
 
@@ -190,13 +191,25 @@ public class HrController {
             if (days == 0) {
                 throw ApiException.badRequest("no_working_days", "Those dates are all Sundays.");
             }
+            UUID workflowId = null;
+            if (req.chainId() != null) {
+                authz.requireOrNotFound(jdbc, ctx, Permission.WORKFLOW_SUBMIT, Resource.ordinary("workflow", null, access.campusPath(jdbc, ctx, year.campusId()), null));
+                try {
+                    workflowId = jdbc.queryForObject("""
+                        insert into workflow_request (tenant_id, campus_id, definition_id, requester_id, subject, details) values (?, ?, ?, ?, ?, ?) returning id
+                        """, UUID.class, ctx.tenant().value(), year.campusId(), req.chainId(), ctx.actor().personId(),
+                        "Leave: " + req.leaveType().toLowerCase() + " " + req.fromDate() + " to " + req.toDate(), days + " working days");
+                } catch (DataIntegrityViolationException e) {
+                    throw ApiException.badRequest("unknown_chain", "Choose a published approval chain of this campus.");
+                }
+            }
             UUID id;
             try {
                 id = jdbc.queryForObject("""
-                    insert into leave_request (tenant_id, person_id, campus_id, academic_year_id, leave_type, from_date, to_date, days, reason)
-                    values (?, ?, ?, ?, ?, ?, ?, ?, ?) returning id
+                    insert into leave_request (tenant_id, person_id, campus_id, academic_year_id, leave_type, from_date, to_date, days, reason, workflow_request_id)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id
                     """, UUID.class, ctx.tenant().value(), ctx.actor().personId(), year.campusId(), yearId, req.leaveType(), req.fromDate(),
-                    req.toDate(), days, blank(req.reason()));
+                    req.toDate(), days, blank(req.reason()), workflowId);
             } catch (DataIntegrityViolationException e) {
                 throw new ApiException(HttpStatus.CONFLICT, "overlap", "You already have leave requested or approved on some of those days.");
             }
@@ -248,6 +261,13 @@ public class HrController {
             if (!"PENDING".equals(l.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, "not_pending", "This request is already " + l.status().toLowerCase() + ".");
             }
+            UUID linked = jdbc.queryForObject("select workflow_request_id from leave_request where id = ?", UUID.class, id);
+            if (linked != null && !"CANCEL".equals(req.decision())) {
+                throw new ApiException(HttpStatus.CONFLICT, "use_approvals", "This leave is decided through its approval chain on the Approvals page.");
+            }
+            if (linked != null) {
+                jdbc.update("update workflow_request set status = 'WITHDRAWN', closed_at = clock_timestamp() where id = ? and status = 'PENDING'", linked);
+            }
             String to = switch (req.decision()) { case "APPROVE" -> "APPROVED"; case "REJECT" -> "REJECTED"; default -> "CANCELLED"; };
             try {
                 jdbc.update("update leave_request set status = ?, decided_by = ?, decision_note = ? where id = ?", to, ctx.actor().personId(), note, id);
@@ -296,14 +316,17 @@ public class HrController {
     private LeaveView view(JdbcTemplate jdbc, UUID id) {
         return jdbc.query("""
             select l.id, l.person_id, trim(coalesce(p.given_name, '') || ' ' || coalesce(p.family_name, '')), l.leave_type, l.from_date, l.to_date,
-                   l.days, l.reason, l.status, trim(coalesce(d.given_name, '') || ' ' || coalesce(d.family_name, '')), l.decision_note, l.requested_at
+                   l.days, l.reason, l.status, trim(coalesce(d.given_name, '') || ' ' || coalesce(d.family_name, '')), l.decision_note, l.requested_at,
+                   l.workflow_request_id,
+                   (select s.label from workflow_request w join workflow_step s on s.tenant_id = w.tenant_id and s.definition_id = w.definition_id and s.position = w.current_step
+                     where w.id = l.workflow_request_id and w.status = 'PENDING')
               from leave_request l
               join person p on p.tenant_id = l.tenant_id and p.id = l.person_id
               left join person d on d.tenant_id = l.tenant_id and d.id = l.decided_by
              where l.id = ?
             """, (rs, i) -> new LeaveView(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4),
                 rs.getObject(5, LocalDate.class), rs.getObject(6, LocalDate.class), rs.getBigDecimal(7), rs.getString(8), rs.getString(9),
-                rs.getString(10), rs.getString(11), rs.getObject(12, OffsetDateTime.class)), id).get(0);
+                rs.getString(10), rs.getString(11), rs.getObject(12, OffsetDateTime.class), rs.getObject(13, UUID.class), rs.getString(14)), id).get(0);
     }
 
     private static String blank(String s) {

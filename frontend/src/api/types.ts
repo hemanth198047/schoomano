@@ -752,6 +752,8 @@ export interface LeaveRequest {
   decidedBy: string | null;
   decisionNote: string | null;
   requestedAt: string;
+  workflowRequestId: string | null;
+  waitingFor: string | null;
 }
 
 export interface TransportStop {

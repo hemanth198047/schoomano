@@ -159,4 +159,52 @@ class WorkflowApiIT extends ApiITSupport {
             .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("over_budget"));
         assertEquals("PENDING", ownerString("select status from workflow_request where id = '" + JsonPath.read(fourth, "$.workflowRequestId") + "'"));
     }
+
+    @Test
+    void leaveCanBeApprovedThroughAChain() throws Exception {
+        staff("d31", "dev-wf-d31", "teacher");
+        staff("d32", "dev-wf-d32", "principal");
+        staff("d33", "dev-wf-d33", "campus_admin");
+        String d31 = "13000000-0000-4000-8000-000000000d31";
+        String chains = "/api/v1/campuses/" + CAMPUS + "/workflow-chains";
+        String chainId = JsonPath.read(create(chains, "dev-asha", "{\"chainKey\":\"it-leave-one\",\"name\":\"IT Leave one step\",\"steps\":[{\"roleKey\":\"principal\",\"label\":\"Principal\"}]}"), "$.id");
+        mvc.perform(json(post("/api/v1/workflow-chains/" + chainId + "/publish"), "dev-asha", "{}")).andExpect(status().isOk());
+        String year = "15000000-0000-4000-8000-000000000001";
+        mvc.perform(json(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/campuses/" + CAMPUS + "/staff/" + d31), "dev-wf-d33",
+            "{\"employeeNo\":\"E-IT-D31\",\"designation\":\"Teacher\",\"employmentType\":\"FULL_TIME\",\"joinedOn\":\"2020-04-01\"}")).andExpect(status().isOk());
+        mvc.perform(json(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/academic-years/" + year + "/leave-allowances"), "dev-wf-d33",
+            "{\"leaveType\":\"EARNED\",\"days\":3}")).andExpect(status().isOk());
+        String leaves = "/api/v1/academic-years/" + year + "/leave-requests";
+        java.util.function.BiFunction<String, String, String> body = (from, to) ->
+            "{\"leaveType\":\"EARNED\",\"fromDate\":\"" + from + "\",\"toDate\":\"" + to + "\",\"chainId\":\"" + chainId + "\"}";
+
+        mvc.perform(json(post(leaves), "dev-wf-d31", body.apply("2026-12-14", "2026-12-15").replace(chainId, "13000000-0000-4000-8000-000000000d31")))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("unknown_chain"));
+        String first = create(leaves, "dev-wf-d31", body.apply("2026-12-14", "2026-12-15"));
+        String leave1 = JsonPath.read(first, "$.id");
+        String wf1 = JsonPath.read(first, "$.workflowRequestId");
+        assertEquals("Principal", JsonPath.read(first, "$.waitingFor"));
+        mvc.perform(json(post("/api/v1/leave-requests/" + leave1 + "/decision"), "dev-wf-d32", "{\"decision\":\"APPROVE\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("use_approvals"));
+        mvc.perform(json(post("/api/v1/workflow-requests/" + wf1 + "/decision"), "dev-wf-d31", "{\"decision\":\"APPROVED\"}")).andExpect(status().isNotFound());
+        mvc.perform(json(post("/api/v1/workflow-requests/" + wf1 + "/decision"), "dev-wf-d32", "{\"decision\":\"APPROVED\"}")).andExpect(status().isOk());
+        mvc.perform(as(get(leaves), "dev-wf-d31")).andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id=='" + leave1 + "')].status").value("APPROVED"));
+
+        // The balance is still checked when the chain approves: 2 used of 3, another 2 days does not fit.
+        String second = create(leaves, "dev-wf-d31", body.apply("2026-12-16", "2026-12-17"));
+        String wf2 = JsonPath.read(second, "$.workflowRequestId");
+        mvc.perform(json(post("/api/v1/workflow-requests/" + wf2 + "/decision"), "dev-wf-d32", "{\"decision\":\"APPROVED\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("insufficient_balance"));
+        assertEquals("PENDING", ownerString("select status from workflow_request where id = '" + wf2 + "'"));
+
+        // A rejection in the chain rejects the leave with its reason; cancelling withdraws the chain request.
+        String third = create(leaves, "dev-wf-d31", body.apply("2026-12-21", "2026-12-21"));
+        mvc.perform(json(post("/api/v1/workflow-requests/" + JsonPath.read(third, "$.workflowRequestId") + "/decision"), "dev-wf-d32",
+            "{\"decision\":\"REJECTED\",\"note\":\"Exams that day\"}")).andExpect(status().isOk());
+        mvc.perform(as(get(leaves), "dev-wf-d31")).andExpect(jsonPath("$[?(@.id=='" + JsonPath.read(third, "$.id") + "')].status").value("REJECTED"))
+            .andExpect(jsonPath("$[?(@.id=='" + JsonPath.read(third, "$.id") + "')].decisionNote").value("Exams that day"));
+        mvc.perform(json(post("/api/v1/leave-requests/" + JsonPath.read(second, "$.id") + "/decision"), "dev-wf-d31", "{\"decision\":\"CANCEL\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+        assertEquals("WITHDRAWN", ownerString("select status from workflow_request where id = '" + wf2 + "'"));
+    }
 }

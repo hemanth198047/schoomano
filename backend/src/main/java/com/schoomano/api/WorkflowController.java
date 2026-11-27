@@ -217,7 +217,7 @@ public class WorkflowController {
                 jdbc.update("update workflow_request set current_step = ? where id = ?", step + 1, id);
             }
             if (!"PENDING".equals(jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id))) {
-                settlePurchase(jdbc, ctx, id, jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id), req.note());
+                settleLinked(jdbc, ctx, id, jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id), req.note());
             }
             audit.write(jdbc, ctx, "workflow.request_" + req.decision().toLowerCase(), "workflow_request", id.toString(), "SUCCESS", null, Map.of("step", step));
             return request(jdbc, ctx, id);
@@ -235,7 +235,7 @@ public class WorkflowController {
             if (jdbc.update("update workflow_request set status = 'WITHDRAWN', closed_at = clock_timestamp() where id = ? and status = 'PENDING'", id) == 0) {
                 throw new ApiException(HttpStatus.CONFLICT, "request_closed", "This request is already closed.");
             }
-            settlePurchase(jdbc, ctx, id, "WITHDRAWN", null);
+            settleLinked(jdbc, ctx, id, "WITHDRAWN", null);
             audit.write(jdbc, ctx, "workflow.request_withdrawn", "workflow_request", id.toString(), "SUCCESS", null, Map.of());
             return request(jdbc, ctx, id);
         });
@@ -261,8 +261,8 @@ public class WorkflowController {
 
     // ---- helpers ---------------------------------------------------------------------------------------------
 
-    /** A purchase request linked to a closed workflow request follows its outcome; the database refuses any other route. */
-    private void settlePurchase(JdbcTemplate jdbc, RequestContext ctx, UUID workflowId, String outcome, String note) {
+    /** A purchase or leave request linked to a closed workflow request follows its outcome; the database refuses any other route. */
+    private void settleLinked(JdbcTemplate jdbc, RequestContext ctx, UUID workflowId, String outcome, String note) {
         String to = switch (outcome) { case "APPROVED" -> "APPROVED"; case "REJECTED" -> "REJECTED"; default -> "CANCELLED"; };
         List<UUID> linked = jdbc.queryForList("select id from purchase_request where workflow_request_id = ? and status = 'SUBMITTED'", UUID.class, workflowId);
         for (UUID purchaseId : linked) {
@@ -277,6 +277,18 @@ public class WorkflowController {
             jdbc.update("insert into purchase_event (tenant_id, request_id, from_status, to_status, note, actor_person_id) values (?, ?, 'SUBMITTED', ?, ?, ?)",
                 ctx.tenant().value(), purchaseId, to, note == null || note.isBlank() ? null : note.trim(), ctx.actor().personId());
             audit.write(jdbc, ctx, "procurement." + to.toLowerCase(), "purchase_request", purchaseId.toString(), "SUCCESS", null, Map.of("viaWorkflow", true));
+        }
+        for (UUID leaveId : jdbc.queryForList("select id from leave_request where workflow_request_id = ? and status = 'PENDING'", UUID.class, workflowId)) {
+            try {
+                jdbc.update("update leave_request set status = ?, decided_by = ?, decision_note = ? where id = ?", to, ctx.actor().personId(),
+                    note == null || note.isBlank() ? null : note.trim(), leaveId);
+            } catch (DataIntegrityViolationException e) {
+                if (String.valueOf(e.getMostSpecificCause().getMessage()).contains("insufficient leave balance")) {
+                    throw new ApiException(HttpStatus.CONFLICT, "insufficient_balance", "There is not enough leave balance, so this leave cannot be approved.");
+                }
+                throw e;
+            }
+            audit.write(jdbc, ctx, "hr.leave_" + to.toLowerCase(), "leave_request", leaveId.toString(), "SUCCESS", null, Map.of("viaWorkflow", true));
         }
     }
 

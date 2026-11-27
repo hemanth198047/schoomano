@@ -9,6 +9,7 @@ import type {
   Me,
   PersonMatch,
   StaffMember,
+  WorkflowChain,
 } from '../api/types';
 import { useApiSession } from '../app/session';
 import { useApiResource } from '../app/useApiResource';
@@ -112,6 +113,9 @@ function Body({ me, campusId, yearId }: { me: Me; campusId: string; yearId: stri
   const [balance, reloadBalance] = useApiResource<LeaveBalance[]>(
     canRequestLeave(me) ? `/api/v1/academic-years/${yearId}/leave-balance` : null,
   );
+  const [chains] = useApiResource<WorkflowChain[]>(
+    canRequestLeave(me) ? `/api/v1/campuses/${campusId}/workflow-chains` : null,
+  );
   const refresh = () => {
     reloadRequests();
     reloadBalance();
@@ -138,7 +142,11 @@ function Body({ me, campusId, yearId }: { me: Me; campusId: string; yearId: stri
                 ))}
               </ul>
             ))}
-          <RequestForm yearId={yearId} onSaved={refresh} />
+          <RequestForm
+            yearId={yearId}
+            chains={chains.status === 'ready' ? chains.data.filter((c) => c.status === 'PUBLISHED') : []}
+            onSaved={refresh}
+          />
         </section>
       )}
       <section aria-labelledby="requests-h">
@@ -161,12 +169,21 @@ function Body({ me, campusId, yearId }: { me: Me; campusId: string; yearId: stri
   );
 }
 
-function RequestForm({ yearId, onSaved }: { yearId: string; onSaved: () => void }) {
+function RequestForm({
+  yearId,
+  chains,
+  onSaved,
+}: {
+  yearId: string;
+  chains: WorkflowChain[];
+  onSaved: () => void;
+}) {
   const session = useApiSession();
   const [type, setType] = useState('CASUAL');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [reason, setReason] = useState('');
+  const [chainId, setChainId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function send() {
@@ -175,7 +192,13 @@ function RequestForm({ yearId, onSaved }: { yearId: string; onSaved: () => void 
     try {
       await apiRequest(session, `/api/v1/academic-years/${yearId}/leave-requests`, {
         method: 'POST',
-        body: { leaveType: type, fromDate: from, toDate: to || from, reason: reason.trim() || undefined },
+        body: {
+          leaveType: type,
+          fromDate: from,
+          toDate: to || from,
+          reason: reason.trim() || undefined,
+          chainId: chainId || undefined,
+        },
       });
       setFrom('');
       setTo('');
@@ -208,6 +231,20 @@ function RequestForm({ yearId, onSaved }: { yearId: string; onSaved: () => void 
         <Field label="Last day" hint="Leave blank for one day">
           {(p) => <input {...p} type="date" value={to} onChange={(e) => setTo(e.target.value)} />}
         </Field>
+        {chains.length > 0 && (
+          <Field label="Approval chain" hint="Optional. Without one, HR or the principal approves directly">
+            {(p) => (
+              <select {...p} value={chainId} onChange={(e) => setChainId(e.target.value)}>
+                <option value="">Approve directly</option>
+                {chains.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.steps.map((st) => st.label).join(', then ')})
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         <Field label="Reason" hint="Optional">
           {(p) => (
             <input {...p} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />
@@ -276,7 +313,13 @@ function LeaveRow({ me, r, onChanged }: { me: Me; r: LeaveRequest; onChanged: ()
       )}
       {r.status === 'PENDING' && (
         <div>
-          {canDecideLeave(me) && !mine && (
+          {r.workflowRequestId && (
+            <p className="muted">
+              In the approval chain{r.waitingFor ? `, waiting for ${r.waitingFor}` : ''}. Decide it on the
+              Approvals page.
+            </p>
+          )}
+          {canDecideLeave(me) && !mine && !r.workflowRequestId && (
             <>
               <Field label={`Note for ${label}`} hint="Required to reject">
                 {(p) => <input {...p} value={note} onChange={(e) => setNote(e.target.value)} />}

@@ -38,6 +38,8 @@ const leave = (status: string) => ({
   decidedBy: null,
   decisionNote: null,
   requestedAt: '2026-11-20T09:00:00Z',
+  workflowRequestId: null as string | null,
+  waitingFor: null as string | null,
 });
 
 describe('StaffLeavePage', () => {
@@ -118,5 +120,43 @@ describe('StaffLeavePage', () => {
     await user.type(screen.getByLabelText('Days per year'), '12');
     await user.click(screen.getByRole('button', { name: 'Save allowance' }));
     expect(await screen.findByText('Saved.')).toBeInTheDocument();
+  });
+
+  it('sends leave through an approval chain and keeps direct approval off it', async () => {
+    const calls = stubFetch((url, init) => {
+      if (url.includes('/academic-structure')) return { body: structure };
+      if (url.endsWith('/leave-balance')) return { body: balance };
+      if (url.includes('/workflow-chains'))
+        return {
+          body: [
+            {
+              id: 'c1',
+              chainKey: 'leave',
+              version: 1,
+              name: 'Leave sign-off',
+              status: 'PUBLISHED',
+              steps: [{ position: 1, roleKey: 'principal', label: 'Principal' }],
+            },
+          ],
+        };
+      if (url.endsWith('/leave-requests') && init.method === 'POST')
+        return { status: 201, body: leave('PENDING') };
+      if (url.endsWith('/leave-requests'))
+        return { body: [{ ...leave('PENDING'), workflowRequestId: 'w1', waitingFor: 'Principal' }] };
+      return { status: 404, body: { code: 'not_found', detail: 'no' } };
+    });
+    const user = userEvent.setup();
+    renderWithApp(
+      <StaffLeavePage me={person('principal', 'Priya Principal')} campuses={campuses} selectedCampusId="n" />,
+    );
+    expect(await screen.findByText(/waiting for Principal/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
+    await user.selectOptions(await screen.findByLabelText(/Approval chain/), 'c1');
+    await user.type(screen.getByLabelText('First day'), '2026-12-07');
+    await user.click(screen.getByRole('button', { name: 'Send leave request' }));
+    expect(JSON.parse(String(calls.find((c) => c.init.method === 'POST')?.init.body))).toMatchObject({
+      chainId: 'c1',
+      fromDate: '2026-12-07',
+    });
   });
 });
