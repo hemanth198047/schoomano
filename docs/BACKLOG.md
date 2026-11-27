@@ -48,6 +48,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B29** (done, verified in CI) Front-desk role | M21 | B28 | A gate-only role that records visitors without campus-admin access |
 | **B30** (done, verified in CI) Approval notices | M26 | B25 | In-app notices to approvers when a request reaches them and to the requester when it is decided |
 | **B31** (done, verified in CI) Visitor arrival notice | M21 | B28, B30 | The staff member being visited gets an in-app notice when their visitor is checked in |
+| **B32** (done, CI pending) Pre-registered visitors | M21 | B28, B31 | Staff announce guests ahead; the gate checks them in against the announcement |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 

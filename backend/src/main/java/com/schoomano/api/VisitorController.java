@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -57,6 +58,13 @@ public class VisitorController {
 
     public record VisitView(UUID id, String visitorName, String organisation, String phone, String purpose, String host, String badgeNo,
                             OffsetDateTime checkedInAt, String checkedInBy, OffsetDateTime checkedOutAt, boolean inside) { }
+
+    public record ExpectedCreate(@NotBlank @Size(min = 2, max = 120) String visitorName, @Size(max = 120) String organisation,
+                                 @NotBlank @Size(min = 2, max = 200) String purpose, @NotNull LocalDate expectedOn) { }
+
+    public record Arrival(@Pattern(regexp = "^[0-9+ -]{6,20}$") String phone, @Pattern(regexp = "^[A-Za-z0-9-]{1,12}$") String badgeNo) { }
+
+    public record ExpectedView(UUID id, String visitorName, String organisation, String purpose, LocalDate expectedOn, String host, String status) { }
 
     @PostMapping("/campuses/{campusId}/visits")
     @ResponseStatus(HttpStatus.CREATED)
@@ -129,6 +137,110 @@ public class VisitorController {
             audit.write(jdbc, ctx, "visitor.checked_out", "visitor_visit", id.toString(), "SUCCESS", null, Map.of());
             return visits(jdbc, "v.id = ?", id).get(0);
         });
+    }
+
+    // ---- pre-registered visitors -----------------------------------------------------------------------------
+
+    /** A staff member announces a guest for today or up to 30 days ahead. The host is always the person announcing. */
+    @PostMapping("/campuses/{campusId}/expected-visitors")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ExpectedView announce(RequestContext ctx, @PathVariable UUID campusId, @Valid @RequestBody ExpectedCreate req) {
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            require(jdbc, ctx, Permission.VISITOR_EXPECT, campusId);
+            LocalDate today = LocalDate.now(IST);
+            if (req.expectedOn().isBefore(today) || req.expectedOn().isAfter(today.plusDays(30))) {
+                throw ApiException.badRequest("invalid_date", "Choose today or a day within the next 30 days.");
+            }
+            if (jdbc.queryForObject("select count(*) from staff_profile where person_id = ? and campus_id = ? and status = 'ACTIVE'", Long.class,
+                ctx.actor().personId(), campusId) == 0) {
+                throw ApiException.badRequest("no_profile", "Only staff of this campus can announce a visitor.");
+            }
+            UUID id = jdbc.queryForObject("""
+                insert into expected_visitor (tenant_id, campus_id, host_person_id, visitor_name, organisation, purpose, expected_on) values (?, ?, ?, ?, ?, ?, ?) returning id
+                """, UUID.class, ctx.tenant().value(), campusId, ctx.actor().personId(), req.visitorName().trim(), blank(req.organisation()), req.purpose().trim(), req.expectedOn());
+            audit.write(jdbc, ctx, "visitor.announced", "expected_visitor", id.toString(), "SUCCESS", null, Map.of());
+            return expected(jdbc, "e.id = ?", id).get(0);
+        });
+    }
+
+    /** view=today (the gate: everyone still expected today) or view=mine (the caller's own announcements from today on). */
+    @GetMapping("/campuses/{campusId}/expected-visitors")
+    public List<ExpectedView> expectedList(RequestContext ctx, @PathVariable UUID campusId, @RequestParam(defaultValue = "mine") String view) {
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            LocalDate today = LocalDate.now(IST);
+            return switch (view) {
+                case "today" -> {
+                    require(jdbc, ctx, Permission.VISITOR_RECORD, campusId);
+                    yield expected(jdbc, "e.campus_id = ? and e.expected_on = ? and e.status = 'EXPECTED'", campusId, today);
+                }
+                case "mine" -> {
+                    require(jdbc, ctx, Permission.VISITOR_EXPECT, campusId);
+                    yield expected(jdbc, "e.campus_id = ? and e.host_person_id = ? and e.expected_on >= ? and e.status = 'EXPECTED'", campusId, ctx.actor().personId(), today);
+                }
+                default -> throw ApiException.badRequest("invalid_view", "View must be today or mine.");
+            };
+        });
+    }
+
+    @PostMapping("/expected-visitors/{id}/cancel")
+    public ExpectedView cancelExpected(RequestContext ctx, @PathVariable UUID id) {
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            UUID host = jdbc.queryForList("select host_person_id from expected_visitor where id = ?", UUID.class, id).stream().findFirst().orElseThrow(ApiException::notFound);
+            if (!host.equals(ctx.actor().personId())) {
+                throw ApiException.notFound();
+            }
+            if (jdbc.update("update expected_visitor set status = 'CANCELLED' where id = ? and status = 'EXPECTED'", id) == 0) {
+                throw new ApiException(HttpStatus.CONFLICT, "already_closed", "This announcement is already closed.");
+            }
+            audit.write(jdbc, ctx, "visitor.announcement_cancelled", "expected_visitor", id.toString(), "SUCCESS", null, Map.of());
+            return expected(jdbc, "e.id = ?", id).get(0);
+        });
+    }
+
+    /** The gate checks an announced guest in: the visit is created from the announcement and the host is told. */
+    @PostMapping("/expected-visitors/{id}/arrive")
+    public VisitView arrive(RequestContext ctx, @PathVariable UUID id, @Valid @RequestBody(required = false) Arrival req) {
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            var row = jdbc.queryForList("select campus_id, host_person_id, visitor_name, organisation, purpose, status from expected_visitor where id = ?", id)
+                .stream().findFirst().orElseThrow(ApiException::notFound);
+            UUID campusId = (UUID) row.get("campus_id");
+            require(jdbc, ctx, Permission.VISITOR_RECORD, campusId);
+            if (!"EXPECTED".equals(row.get("status"))) {
+                throw new ApiException(HttpStatus.CONFLICT, "already_closed", "This announcement is already closed.");
+            }
+            if (!LocalDate.now(IST).equals(jdbc.queryForObject("select expected_on from expected_visitor where id = ?", LocalDate.class, id))) {
+                throw new ApiException(HttpStatus.CONFLICT, "not_today", "This guest is expected on another day.");
+            }
+            UUID host = (UUID) row.get("host_person_id");
+            String name = (String) row.get("visitor_name");
+            String purpose = (String) row.get("purpose");
+            try {
+                UUID visit = jdbc.queryForObject("""
+                    insert into visitor_visit (tenant_id, campus_id, visitor_name, organisation, phone, purpose, host_person_id, badge_no, checked_in_by)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?) returning id
+                    """, UUID.class, ctx.tenant().value(), campusId, name, row.get("organisation"), req == null ? null : blank(req.phone()), purpose, host,
+                    req == null ? null : blank(req.badgeNo()), ctx.actor().personId());
+                jdbc.update("update expected_visitor set status = 'ARRIVED', visit_id = ? where id = ?", visit, id);
+                audit.write(jdbc, ctx, "visitor.checked_in", "visitor_visit", visit.toString(), "SUCCESS", null, Map.of("announced", true));
+                jdbc.queryForObject("select notice_tell_staff('VISITOR', ?, ?, ?, ?::uuid[], null)", Integer.class, campusId,
+                    "Visitor here to see you: " + name, name + " has arrived at the gate. Purpose: " + purpose + ".", "{" + host + "}");
+                return visits(jdbc, "v.id = ?", visit).get(0);
+            } catch (DataIntegrityViolationException e) {
+                if (String.valueOf(e.getMostSpecificCause().getMessage()).contains("visitor_badge_in_use")) {
+                    throw new ApiException(HttpStatus.CONFLICT, "badge_in_use", "That badge is already on someone inside.");
+                }
+                throw e;
+            }
+        });
+    }
+
+    private List<ExpectedView> expected(JdbcTemplate jdbc, String where, Object... args) {
+        return jdbc.query("""
+            select e.id, e.visitor_name, e.organisation, e.purpose, e.expected_on, trim(coalesce(h.given_name, '') || ' ' || coalesce(h.family_name, '')), e.status
+              from expected_visitor e join person h on h.tenant_id = e.tenant_id and h.id = e.host_person_id
+             where """ + " " + where + " order by e.expected_on, e.created_at limit 300",
+            (rs, i) -> new ExpectedView(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), rs.getString(4), rs.getObject(5, LocalDate.class),
+                rs.getString(6), rs.getString(7)), args);
     }
 
     private void require(JdbcTemplate jdbc, RequestContext ctx, Permission permission, UUID campusId) {

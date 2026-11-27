@@ -3359,6 +3359,67 @@ paths:
       responses:
         '200': { description: Hosts, content: { application/json: { schema: { type: array, items: { type: object, properties: { personId: { type: string, format: uuid }, name: { type: string }, designation: { type: string } } } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/expected-visitors:
+    get:
+      tags: [Facilities]
+      summary: Announced guests. view=today lists those still expected today for the gate (VISITOR_RECORD), view=mine the caller's own from today on (VISITOR_EXPECT)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: view, in: query, schema: { type: string, enum: [today, mine], default: mine } }
+      responses:
+        '200': { description: Guests, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExpectedVisit' } } } } }
+        '400': { description: invalid_view, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Facilities]
+      summary: A staff member of the campus announces a guest for today or up to 30 days ahead (VISITOR_EXPECT). The host is the caller
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [visitorName, purpose, expectedOn]
+              properties:
+                visitorName: { type: string, minLength: 2, maxLength: 120 }
+                organisation: { type: string, maxLength: 120 }
+                purpose: { type: string, minLength: 2, maxLength: 200 }
+                expectedOn: { type: string, format: date }
+      responses:
+        '201': { description: Announced, content: { application/json: { schema: { $ref: '#/components/schemas/ExpectedVisit' } } } }
+        '400': { description: invalid_date or no_profile, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/expected-visitors/{id}/cancel:
+    post:
+      tags: [Facilities]
+      summary: The host cancels an announcement that is still expected
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cancelled, content: { application/json: { schema: { $ref: '#/components/schemas/ExpectedVisit' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/expected-visitors/{id}/arrive:
+    post:
+      tags: [Facilities]
+      summary: The gate checks an announced guest in on the day (VISITOR_RECORD). Creates the visit with the announcing host and tells the host
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: { type: string, pattern: '^[0-9+ -]{6,20}$' }
+                badgeNo: { type: string, pattern: '^[A-Za-z0-9-]{1,12}$' }
+      responses:
+        '200': { description: Checked in, content: { application/json: { schema: { $ref: '#/components/schemas/Visit' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_closed, not_today or badge_in_use, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/visits/{id}/checkout:
     post:
       tags: [Facilities]
@@ -4486,6 +4547,16 @@ components:
         submittedAt: { type: string, format: date-time }
         closedAt: { type: string, format: date-time, nullable: true }
         steps: { type: array, items: { $ref: '#/components/schemas/WorkflowStep' } }
+    ExpectedVisit:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        visitorName: { type: string }
+        organisation: { type: string, nullable: true }
+        purpose: { type: string }
+        expectedOn: { type: string, format: date }
+        host: { type: string }
+        status: { type: string, enum: [EXPECTED, ARRIVED, CANCELLED] }
     Visit:
       type: object
       properties:

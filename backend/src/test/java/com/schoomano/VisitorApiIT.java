@@ -109,4 +109,52 @@ class VisitorApiIT extends ApiITSupport {
         mvc.perform(as(get("/api/v1/campuses/" + CAMPUS + "/staff"), "dev-vs-d44")).andExpect(status().isNotFound());
         mvc.perform(as(get("/api/v1/campuses/" + CAMPUS + "/bookings"), "dev-vs-d44")).andExpect(status().isNotFound());
     }
+
+    @Test
+    void staffAnnounceGuestsAndTheGateChecksThemIn() throws Exception {
+        staff("d46", "dev-vs-d46", "campus_admin");
+        staff("d47", "dev-vs-d47", "teacher");
+        staff("d48", "dev-vs-d48", "front_desk");
+        String d47 = "13000000-0000-4000-8000-000000000d47";
+        String d46 = "13000000-0000-4000-8000-000000000d46";
+        for (String[] p : new String[][] {{d47, "E-IT-D47"}, {d46, "E-IT-D46"}}) {
+            mvc.perform(json(put("/api/v1/campuses/" + CAMPUS + "/staff/" + p[0]), "dev-vs-d46",
+                "{\"employeeNo\":\"" + p[1] + "\",\"designation\":\"Teacher\",\"employmentType\":\"FULL_TIME\",\"joinedOn\":\"2020-04-01\"}")).andExpect(status().isOk());
+        }
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        String expected = "/api/v1/campuses/" + CAMPUS + "/expected-visitors";
+        String body = "{\"visitorName\":\"IT Guest\",\"organisation\":\"Books Ltd\",\"purpose\":\"Demo\",\"expectedOn\":\"" + today + "\"}";
+
+        // Staff announce; parents cannot; dates are limited; the gate sees today's guests.
+        mvc.perform(json(post(expected), "dev-meera", body)).andExpect(status().isNotFound());
+        mvc.perform(json(post(expected), "dev-vs-d47", body.replace(today.toString(), today.minusDays(1).toString()))).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("invalid_date"));
+        mvc.perform(json(post(expected), "dev-vs-d47", body.replace(today.toString(), today.plusDays(40).toString()))).andExpect(status().isBadRequest());
+        String id = JsonPath.read(mvc.perform(json(post(expected), "dev-vs-d47", body)).andExpect(status().isCreated())
+            .andExpect(jsonPath("$.host").value("dev-vs-d47 Staff")).andReturn().getResponse().getContentAsString(), "$.id");
+        String later = JsonPath.read(mvc.perform(json(post(expected), "dev-vs-d47", body.replace("IT Guest", "IT Later").replace(today.toString(), today.plusDays(3).toString())))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
+        mvc.perform(as(get(expected + "?view=mine"), "dev-vs-d47")).andExpect(jsonPath("$[?(@.id=='" + id + "')].visitorName").value("IT Guest"));
+        mvc.perform(as(get(expected + "?view=mine"), "dev-vs-d46")).andExpect(jsonPath("$[?(@.id=='" + id + "')]").isEmpty());
+        mvc.perform(as(get(expected + "?view=today"), "dev-vs-d47")).andExpect(status().isNotFound());
+        mvc.perform(as(get(expected + "?view=today"), "dev-vs-d48")).andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.id=='" + id + "')].visitorName").value("IT Guest")).andExpect(jsonPath("$[?(@.id=='" + later + "')]").isEmpty());
+
+        // Only the host cancels; the gate cannot check in a guest expected on another day.
+        mvc.perform(json(post("/api/v1/expected-visitors/" + later + "/cancel"), "dev-vs-d46", "{}")).andExpect(status().isNotFound());
+        mvc.perform(json(post("/api/v1/expected-visitors/" + later + "/arrive"), "dev-vs-d48", "{}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("not_today"));
+        mvc.perform(json(post("/api/v1/expected-visitors/" + later + "/cancel"), "dev-vs-d47", "{}")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+        mvc.perform(json(post("/api/v1/expected-visitors/" + later + "/cancel"), "dev-vs-d47", "{}")).andExpect(status().isConflict());
+
+        // Arrival creates the visit with the host, tells the host, and closes the announcement once.
+        mvc.perform(json(post("/api/v1/expected-visitors/" + id + "/arrive"), "dev-vs-d47", "{}")).andExpect(status().isNotFound());
+        mvc.perform(json(post("/api/v1/expected-visitors/" + id + "/arrive"), "dev-vs-d48", "{\"badgeNo\":\"IT-9\"}")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.inside").value(true)).andExpect(jsonPath("$.host").value("dev-vs-d47 Staff")).andExpect(jsonPath("$.badgeNo").value("IT-9"));
+        mvc.perform(json(post("/api/v1/expected-visitors/" + id + "/arrive"), "dev-vs-d48", "{}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("already_closed"));
+        assertEquals(1, ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.kind = 'VISITOR' and d.channel = 'IN_APP'"
+            + " and n.title = 'Visitor here to see you: IT Guest' and d.recipient_person_id = '" + d47 + "'"));
+        mvc.perform(as(get(expected + "?view=today"), "dev-vs-d48")).andExpect(jsonPath("$[?(@.id=='" + id + "')]").isEmpty());
+        mvc.perform(as(get(expected + "?view=week"), "dev-vs-d48")).andExpect(status().isBadRequest());
+        mvc.perform(as(get(expected + "?view=mine"), "dev-other")).andExpect(status().isNotFound());
+    }
 }

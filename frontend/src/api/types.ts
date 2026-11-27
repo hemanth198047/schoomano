@@ -987,3 +987,13 @@ export interface VisitHost {
   name: string;
   designation: string;
 }
+
+export interface ExpectedVisit {
+  id: string;
+  visitorName: string;
+  organisation: string | null;
+  purpose: string;
+  expectedOn: string;
+  host: string;
+  status: 'EXPECTED' | 'ARRIVED' | 'CANCELLED';
+}
