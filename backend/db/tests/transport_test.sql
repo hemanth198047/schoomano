@@ -53,20 +53,20 @@ end $$;
 do $$ begin
   insert into boarding_event (tenant_id, route_id, student_person_id, trip_date, trip, event, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000020',
-     current_date, 'MORNING', 'BOARDED', '13000000-0000-4000-8000-000000000002');
+     (now() at time zone 'Asia/Kolkata')::date, 'MORNING', 'BOARDED', '13000000-0000-4000-8000-000000000002');
   begin insert into boarding_event (tenant_id, route_id, student_person_id, trip_date, trip, event, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000020',
-     current_date, 'MORNING', 'BOARDED', '13000000-0000-4000-8000-000000000002');
+     (now() at time zone 'Asia/Kolkata')::date, 'MORNING', 'BOARDED', '13000000-0000-4000-8000-000000000002');
     raise exception 'T3 failed: duplicate accepted';
   exception when unique_violation then null; end;
   begin insert into boarding_event (tenant_id, route_id, student_person_id, trip_date, trip, event, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-000000000003', '13000000-0000-4000-8000-000000000020',
-     current_date, 'MORNING', 'BOARDED', '13000000-0000-4000-8000-000000000002');
+     (now() at time zone 'Asia/Kolkata')::date, 'MORNING', 'BOARDED', '13000000-0000-4000-8000-000000000002');
     raise exception 'T3 failed: unassigned route';
   exception when check_violation then null; end;
   begin insert into boarding_event (tenant_id, route_id, student_person_id, trip_date, trip, event, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000020',
-     current_date + 2, 'AFTERNOON', 'BOARDED', '13000000-0000-4000-8000-000000000002');
+     (now() at time zone 'Asia/Kolkata')::date + 2, 'AFTERNOON', 'BOARDED', '13000000-0000-4000-8000-000000000002');
     raise exception 'T3 failed: future trip';
   exception when check_violation then null; end;
   begin update boarding_event set trip = 'AFTERNOON'; raise exception 'T3 failed: edited';
@@ -80,12 +80,12 @@ end $$;
 do $$ begin
   begin update transport_assignment set route_id = '1c000000-0000-4000-8000-000000000003'; raise exception 'T4 failed: edited';
   exception when check_violation or insufficient_privilege then null; end;
-  update transport_assignment set status = 'ENDED', ended_on = current_date;
+  update transport_assignment set status = 'ENDED', ended_on = (now() at time zone 'Asia/Kolkata')::date;
   begin update transport_assignment set status = 'ACTIVE', ended_on = null; raise exception 'T4 failed: reopened';
   exception when check_violation then null; end;
   begin insert into boarding_event (tenant_id, route_id, student_person_id, trip_date, trip, event, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000020',
-     current_date, 'AFTERNOON', 'BOARDED', '13000000-0000-4000-8000-000000000002');
+     (now() at time zone 'Asia/Kolkata')::date, 'AFTERNOON', 'BOARDED', '13000000-0000-4000-8000-000000000002');
     raise exception 'T4 failed: boarding after the assignment ended';
   exception when check_violation then null; end;
   raise notice 'T4 pass: assignments end cleanly';

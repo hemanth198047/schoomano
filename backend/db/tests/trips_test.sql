@@ -4,9 +4,9 @@ set client_min_messages = notice;
 begin;
 insert into trip (id, tenant_id, campus_id, academic_year_id, name, destination, trip_date, consent_deadline, capacity, created_by) values
   ('1e000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000001',
-   '15000000-0000-4000-8000-000000000001', 'Museum visit', 'Science Museum', current_date, current_date, 1, '13000000-0000-4000-8000-000000000002'),
+   '15000000-0000-4000-8000-000000000001', 'Museum visit', 'Science Museum', (now() at time zone 'Asia/Kolkata')::date, (now() at time zone 'Asia/Kolkata')::date, 1, '13000000-0000-4000-8000-000000000002'),
   ('1e000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000001',
-   '15000000-0000-4000-8000-000000000001', 'Old trip', 'Zoo', current_date + 30, current_date - 1, null, '13000000-0000-4000-8000-000000000002');
+   '15000000-0000-4000-8000-000000000001', 'Old trip', 'Zoo', (now() at time zone 'Asia/Kolkata')::date + 30, (now() at time zone 'Asia/Kolkata')::date - 1, null, '13000000-0000-4000-8000-000000000002');
 insert into student_enrollment (tenant_id, student_person_id, campus_id, academic_year_id) values
   ('10000000-0000-4000-8000-000000000001', '13000000-0000-4000-8000-000000000021', '12000000-0000-4000-8000-000000000001', '15000000-0000-4000-8000-000000000001');
 set local role schoomano_app;

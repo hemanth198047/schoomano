@@ -37,7 +37,7 @@ end $$;
 -- T3: attendance is for members, not the future, once per session, and permanent.
 do $$ begin
   insert into activity_session (id, tenant_id, activity_id, session_date) values
-    ('1d000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000001', current_date);
+    ('1d000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000001', (now() at time zone 'Asia/Kolkata')::date);
   insert into activity_attendance (tenant_id, session_id, student_person_id, present, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000002', '13000000-0000-4000-8000-000000000020', true, '13000000-0000-4000-8000-000000000002');
   begin insert into activity_attendance (tenant_id, session_id, student_person_id, present, recorded_by) values
@@ -52,7 +52,7 @@ do $$ begin
     raise exception 'T3 failed: attendance edited';
   exception when insufficient_privilege or check_violation then null; end;
   insert into activity_session (id, tenant_id, activity_id, session_date) values
-    ('1d000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000001', current_date + 3);
+    ('1d000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000001', (now() at time zone 'Asia/Kolkata')::date + 3);
   begin insert into activity_attendance (tenant_id, session_id, student_person_id, present, recorded_by) values
     ('10000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000003', '13000000-0000-4000-8000-000000000020', true, '13000000-0000-4000-8000-000000000002');
     raise exception 'T3 failed: future session marked';
@@ -62,7 +62,7 @@ end $$;
 
 -- T4: withdrawn stays withdrawn, and frees the seat; closed activities take nobody.
 do $$ begin
-  update activity_member set status = 'WITHDRAWN', left_on = current_date + 1 where student_person_id = '13000000-0000-4000-8000-000000000020';
+  update activity_member set status = 'WITHDRAWN', left_on = (now() at time zone 'Asia/Kolkata')::date + 1 where student_person_id = '13000000-0000-4000-8000-000000000020';
   begin update activity_member set status = 'ACTIVE', left_on = null where student_person_id = '13000000-0000-4000-8000-000000000020';
     raise exception 'T4 failed: withdrawn came back';
   exception when check_violation then null; end;
