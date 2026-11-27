@@ -88,7 +88,7 @@ class TransportApiIT extends ApiITSupport {
             .andExpect(jsonPath("$[0].studentId").value(ANAYA)).andExpect(jsonPath("$[0].stop").value("Market Corner"))
             .andExpect(jsonPath("$[0].today.length()").value(0));
         mvc.perform(json(post(board), "dev-meera", boarded)).andExpect(status().isNotFound());
-        mvc.perform(json(post(board), "dev-tr-d01", boarded)).andExpect(status().isNotFound());
+        mvc.perform(json(post(board), "dev-other", boarded)).andExpect(status().isNotFound());
         mvc.perform(json(post(board), "dev-att-d02", boarded.replace(ANAYA, "13000000-0000-4000-8000-000000000021"))).andExpect(status().isBadRequest());
         mvc.perform(json(post(board), "dev-att-d02", boarded.replace("}", ",\"tripDate\":\"2999-01-01\"}"))).andExpect(status().isBadRequest());
         mvc.perform(json(post(board), "dev-att-d02", boarded)).andExpect(status().isOk()).andExpect(jsonPath("$.replayed").value(false));
