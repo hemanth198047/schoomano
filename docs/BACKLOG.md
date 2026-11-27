@@ -42,7 +42,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B23** (done, verified in CI) Compliance register | M24 | B4 | Obligations with owners and due dates, permanent evidence that moves the due date; no legal content |
 | **B24** (done, verified in CI) Analytics | M25 | B4 | Read-only campus summary of enrolment, attendance and fees; counts only |
 | **B25** (done, verified in CI) Workflow | M26 | B4 | Versioned approval chains and step-by-step requests with a permanent decision record |
-| **B26** (done, CI pending) Purchase approvals via chains | M26, M15 | B25 | A purchase request can be routed through a published chain and is then decided only there |
+| **B26** (done, verified in CI) Purchase approvals via chains | M26, M15 | B25 | A purchase request can be routed through a published chain and is then decided only there |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 
