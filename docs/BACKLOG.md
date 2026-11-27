@@ -37,7 +37,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B18** (done, verified in CI) HR and workforce | M16 | B4 | Staff profiles, yearly leave allowances, leave requests approved by someone else within balance; decisions final |
 | **B19** (done, verified in CI) Transport | M17 | B4 | Vehicles, routes with stops, student assignments within vehicle capacity, boarding records, guardian view of own child |
 | **B20** (done, verified in CI) Co-curricular | M18 | B4 | Activities with seat limits, student membership, session attendance, guardian view of own child |
-| **B21** (done, CI pending) Trips | M19 | B4 | Trips with a consent deadline, guardian consent per child, invited list, day-of headcount |
+| **B21** (done, verified in CI) Trips | M19 | B4 | Trips with a consent deadline, guardian consent per child, invited list, day-of headcount |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 
