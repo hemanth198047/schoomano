@@ -46,9 +46,9 @@ class ProcurementApiIT extends ApiITSupport {
 
     @Test
     void requestsAreApprovedByAnotherPersonWithinBudgetThenPaid() throws Exception {
-        staff("901", "dev-chitra901", "campus_admin");
-        staff("902", "dev-prakash902", "principal");
-        staff("903", "dev-fin903", "finance_officer");
+        staff("b01", "dev-chitra901", "campus_admin");
+        staff("b02", "dev-prakash902", "principal");
+        staff("b03", "dev-fin903", "finance_officer");
         String budgets = "/api/v1/academic-years/" + YEAR + "/budgets";
         String requests = "/api/v1/academic-years/" + YEAR + "/purchase-requests";
 
