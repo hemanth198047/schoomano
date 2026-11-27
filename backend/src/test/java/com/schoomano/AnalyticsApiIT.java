@@ -63,7 +63,7 @@ class AnalyticsApiIT extends ApiITSupport {
         mvc.perform(as(get(url + window), "dev-an-e21")).andExpect(status().isOk())
             .andExpect(jsonPath("$.attendance.marks").value(0)).andExpect(jsonPath("$.attendance.percent").doesNotExist());
         String section = ownerString("select md5('section-CBSE-K12-5-A')::uuid::text");
-        mvc.perform(json(post("/api/v1/sections/" + section + "/attendance"), "dev-ravi",
+        mvc.perform(json(post("/api/v1/sections/" + section + "/attendance/batches"), "dev-ravi",
             "{\"date\":\"" + day + "\",\"source\":\"DEVICE\",\"marks\":[{\"studentId\":\"" + ANAYA + "\",\"status\":\"PRESENT\",\"baseVersion\":0}]}")
             .header("Idempotency-Key", "key-an-0001")).andExpect(status().is2xxSuccessful());
         mvc.perform(as(get(url + window), "dev-an-e21")).andExpect(status().isOk())
