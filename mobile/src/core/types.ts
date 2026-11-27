@@ -141,3 +141,15 @@ export interface ChildActivity {
   sessions: number;
   attended: number;
 }
+
+export interface ChildTrip {
+  tripId: string;
+  name: string;
+  destination: string;
+  tripDate: string;
+  costPaise: number;
+  consentDeadline: string;
+  status: string;
+  consent: 'NONE' | 'GIVEN' | 'DECLINED';
+  canDecide: boolean;
+}

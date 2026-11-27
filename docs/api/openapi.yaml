@@ -2679,6 +2679,147 @@ paths:
       responses:
         '200': { description: Activities, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChildActivity' } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/trips:
+    get:
+      tags: [Trips]
+      summary: Trips of the year with consent and headcount totals (TRIP_READ)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Trips, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Trip' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Trips]
+      summary: Plan a trip (TRIP_MANAGE). Consent must close on or before the trip day; trips cannot be edited, only cancelled
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, destination, tripDate, consentDeadline]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 120 }
+                destination: { type: string, minLength: 2, maxLength: 200 }
+                tripDate: { type: string, format: date }
+                consentDeadline: { type: string, format: date }
+                costPaise: { type: integer, minimum: 0 }
+                capacity: { type: integer, minimum: 1, maximum: 1000 }
+      responses:
+        '201': { description: Planned, content: { application/json: { schema: { $ref: '#/components/schemas/Trip' } } } }
+        '400': { description: deadline_after_trip, trip_in_past or invalid fields, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/trips/{id}/cancel:
+    post:
+      tags: [Trips]
+      summary: Cancel a planned trip (TRIP_MANAGE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cancelled, content: { application/json: { schema: { $ref: '#/components/schemas/Trip' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: trip_finished, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/trips/{id}/complete:
+    post:
+      tags: [Trips]
+      summary: Mark a trip complete on or after its day (TRIP_MANAGE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Completed, content: { application/json: { schema: { $ref: '#/components/schemas/Trip' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: trip_finished or too_early, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/trips/{id}/participants:
+    get:
+      tags: [Trips]
+      summary: Invited students with their latest consent and headcount state (TRIP_READ)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Students, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TripParticipant' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Trips]
+      summary: Invite enrolled students (TRIP_MANAGE). Repeating a student is harmless; the seat limit is enforced in the database
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentIds]
+              properties:
+                studentIds: { type: array, minItems: 1, maxItems: 200, items: { type: string, format: uuid } }
+      responses:
+        '200': { description: Invited; alreadyOnList counts repeats }
+        '400': { description: invalid_student, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: trip_full or trip_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/trip-participants/{id}/remove:
+    post:
+      tags: [Trips]
+      summary: Take a student off the trip list (TRIP_MANAGE). They stay off
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Removed }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_removed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/trips/{id}/consent:
+    post:
+      tags: [Trips]
+      summary: A guardian gives or declines consent for their child (CONSENT_GIVE). Every decision is kept and the latest counts; refused after the deadline
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, decision]
+              properties:
+                studentId: { type: string, format: uuid }
+                decision: { type: string, enum: [GIVEN, DECLINED] }
+                note: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Recorded; replacedEarlier is true when the guardian changed an earlier answer }
+        '400': { description: Invalid decision, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: deadline_passed or trip_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/trips/{id}/headcount:
+    post:
+      tags: [Trips]
+      summary: Record that a child left or came back (TRIP_HEADCOUNT). Needs the latest consent to be given and the trip day to have come; return needs departure first; repeating returns replayed true
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, checkpoint]
+              properties:
+                studentId: { type: string, format: uuid }
+                checkpoint: { type: string, enum: [DEPARTED, RETURNED] }
+      responses:
+        '200': { description: Recorded }
+        '400': { description: no_consent, not_departed, not_started or trip_cancelled, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/trips:
+    get:
+      tags: [Trips]
+      summary: A child's trips with the guardian's latest answer (TRIP_READ). Guardians need the consent capability; otherwise 404
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Trips, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChildTrip' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -3875,3 +4016,40 @@ components:
         joinedOn: { type: string, format: date }
         sessions: { type: integer }
         attended: { type: integer }
+    Trip:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        destination: { type: string }
+        tripDate: { type: string, format: date }
+        costPaise: { type: integer }
+        consentDeadline: { type: string, format: date }
+        capacity: { type: integer, nullable: true }
+        status: { type: string, enum: [PLANNED, COMPLETED, CANCELLED] }
+        invited: { type: integer }
+        given: { type: integer }
+        declined: { type: integer }
+        departed: { type: integer }
+        returned: { type: integer }
+    TripParticipant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        name: { type: string }
+        consent: { type: string, enum: [NONE, GIVEN, DECLINED] }
+        departed: { type: boolean }
+        returned: { type: boolean }
+    ChildTrip:
+      type: object
+      properties:
+        tripId: { type: string, format: uuid }
+        name: { type: string }
+        destination: { type: string }
+        tripDate: { type: string, format: date }
+        costPaise: { type: integer }
+        consentDeadline: { type: string, format: date }
+        status: { type: string }
+        consent: { type: string, enum: [NONE, GIVEN, DECLINED] }
+        canDecide: { type: boolean }

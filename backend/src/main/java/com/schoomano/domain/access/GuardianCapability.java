@@ -16,7 +16,7 @@ public enum GuardianCapability {
             case ATTENDANCE_READ, TRANSPORT_READ -> VIEW_ATTENDANCE;
             case STUDENT_READ_ACADEMIC, ACTIVITY_READ -> VIEW_ACADEMIC;
             case FEE_READ, FEE_PAY -> PAY_FEES;
-            case CONSENT_GIVE -> GIVE_CONSENT;
+            case CONSENT_GIVE, TRIP_READ -> GIVE_CONSENT;
             case NOTICE_RECEIVE -> RECEIVE_NOTICES;
             default -> null;
         });

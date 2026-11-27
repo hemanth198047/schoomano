@@ -819,3 +819,28 @@ export interface ActivitySession {
   present: number;
   absent: number;
 }
+
+export interface Trip {
+  id: string;
+  name: string;
+  destination: string;
+  tripDate: string;
+  costPaise: number;
+  consentDeadline: string;
+  capacity: number | null;
+  status: 'PLANNED' | 'COMPLETED' | 'CANCELLED';
+  invited: number;
+  given: number;
+  declined: number;
+  departed: number;
+  returned: number;
+}
+
+export interface TripParticipant {
+  id: string;
+  studentId: string;
+  name: string;
+  consent: 'NONE' | 'GIVEN' | 'DECLINED';
+  departed: boolean;
+  returned: boolean;
+}

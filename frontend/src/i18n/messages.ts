@@ -18,6 +18,7 @@ export const en = {
   'nav.staffLeave': 'Staff and leave',
   'nav.transport': 'Transport',
   'nav.activities': 'Activities',
+  'nav.trips': 'Trips',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

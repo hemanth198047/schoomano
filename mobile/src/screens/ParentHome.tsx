@@ -5,12 +5,14 @@ import { formatPaise } from '../core/money';
 import { homeworkLine } from '../core/homework';
 import { activityLine, leaderLine } from '../core/activities';
 import { boardingLines, routeLine } from '../core/transport';
+import { consentLine, tripLine } from '../core/trips';
 import { reportLines } from '../core/report';
 import type {
   ChildAttendance,
   InboxItem,
   InvoiceSummary,
   ChildActivity,
+  ChildTrip,
   ChildTransport,
   HomeworkItem,
   Me,
@@ -68,6 +70,7 @@ function ChildView({ client, child }: { client: Client; child: Child }) {
       {child.capabilities.includes('VIEW_ACADEMIC') && (
         <>
           <Activities client={client} studentId={child.studentId} />
+          <Trips client={client} studentId={child.studentId} />
           <Homework client={client} studentId={child.studentId} />
           <ReportCards client={client} studentId={child.studentId} />
         </>
@@ -136,6 +139,55 @@ function Activities({ client, studentId }: { client: Client; studentId: string }
         <View key={a.activityId}>
           <Body strong>{activityLine(a)}</Body>
           {leaderLine(a) && <Body muted>{leaderLine(a)}</Body>}
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function Trips({ client, studentId }: { client: Client; studentId: string }) {
+  const [items, setItems] = useState<ChildTrip[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    client
+      .request<ChildTrip[]>(`/api/v1/students/${studentId}/trips`)
+      .then(setItems)
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) setItems([]);
+        else setError(oops(e));
+      });
+  }, [client, studentId]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  async function decide(t: ChildTrip, decision: 'GIVEN' | 'DECLINED') {
+    setError(null);
+    try {
+      await client.request(`/api/v1/trips/${t.tripId}/consent`, {
+        method: 'POST',
+        json: { studentId, decision },
+      });
+      load();
+    } catch (e) {
+      setError(oops(e));
+    }
+  }
+  if (items && items.length === 0 && !error) return null;
+  return (
+    <Card>
+      <Heading>Trips</Heading>
+      {error && <Notice kind="error">{error}</Notice>}
+      {!items && !error && <Body muted>Loading…</Body>}
+      {items?.map((t) => (
+        <View key={t.tripId}>
+          <Body strong>{tripLine(t)}</Body>
+          <Body muted>{consentLine(t)}</Body>
+          {t.canDecide && t.consent !== 'GIVEN' && (
+            <Button label={`Agree to ${t.name}`} onPress={() => void decide(t, 'GIVEN')} />
+          )}
+          {t.canDecide && t.consent !== 'DECLINED' && (
+            <Button label={`Decline ${t.name}`} quiet onPress={() => void decide(t, 'DECLINED')} />
+          )}
         </View>
       ))}
     </Card>
