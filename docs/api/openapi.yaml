@@ -2243,6 +2243,133 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: Not approved or already paid, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/staff:
+    get:
+      tags: [HR]
+      summary: Staff profiles of a campus (HR_READ). Audited
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Staff, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/StaffMember' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/staff/{personId}:
+    put:
+      tags: [HR]
+      summary: Create or replace a person's staff profile (HR_MANAGE). Students cannot have one; employee numbers are unique; a leaving date marks the person as left
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: personId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeNo, designation, employmentType, joinedOn]
+              properties:
+                employeeNo: { type: string, minLength: 2, maxLength: 30 }
+                designation: { type: string, minLength: 2, maxLength: 80 }
+                department: { type: string, maxLength: 80 }
+                employmentType: { type: string, enum: [FULL_TIME, PART_TIME, CONTRACT] }
+                joinedOn: { type: string, format: date }
+                leftOn: { type: string, format: date }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/StaffMember' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Employee number in use, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/people:
+    get:
+      tags: [HR]
+      summary: Find people who are neither enrolled students nor guardians, by name or reference, to give them a staff profile (HR_MANAGE)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2 } }
+      responses:
+        '200': { description: Matches, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PersonMatch' } } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/leave-allowances:
+    put:
+      tags: [HR]
+      summary: Set the yearly allowance in days for one leave type at this campus (HR_MANAGE)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leaveType, days]
+              properties:
+                leaveType: { type: string, enum: [CASUAL, SICK, EARNED] }
+                days: { type: number, minimum: 0, maximum: 366 }
+      responses:
+        '200': { description: Allowances (campus-wide, nothing taken), content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LeaveBalance' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/leave-balance:
+    get:
+      tags: [HR]
+      summary: The caller's own balance per leave type (LEAVE_REQUEST)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Balance, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LeaveBalance' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/leave-requests:
+    get:
+      tags: [HR]
+      summary: Leave requests, pending first. HR and the principal see all of the campus; everyone else sees their own
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Requests, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LeaveRequest' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [HR]
+      summary: Request leave (LEAVE_REQUEST, needs a staff profile). Days count Monday to Saturday; overlapping requests are refused
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leaveType, fromDate, toDate]
+              properties:
+                leaveType: { type: string, enum: [CASUAL, SICK, EARNED, UNPAID] }
+                fromDate: { type: string, format: date }
+                toDate: { type: string, format: date }
+                reason: { type: string, maxLength: 1000 }
+      responses:
+        '201': { description: Requested, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequest' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Overlaps other leave, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/leave-requests/{id}/decision:
+    post:
+      tags: [HR]
+      summary: Approve or reject a pending request (LEAVE_APPROVE, never the requester), or let the requester withdraw it. Approval stops at the balance; unpaid leave has no limit
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [APPROVE, REJECT, CANCEL] }
+                note: { type: string, maxLength: 1000, description: At least 5 characters to reject }
+      responses:
+        '200': { description: Decided, content: { application/json: { schema: { $ref: '#/components/schemas/LeaveRequest' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Not pending, or not enough balance, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -2583,6 +2710,48 @@ components:
               note: { type: string, nullable: true }
               by: { type: string }
               at: { type: string, format: date-time }
+    StaffMember:
+      type: object
+      properties:
+        personId: { type: string, format: uuid }
+        name: { type: string }
+        employeeNo: { type: string }
+        designation: { type: string }
+        department: { type: string, nullable: true }
+        employmentType: { type: string, enum: [FULL_TIME, PART_TIME, CONTRACT] }
+        joinedOn: { type: string, format: date }
+        status: { type: string, enum: [ACTIVE, LEFT] }
+        leftOn: { type: string, format: date, nullable: true }
+    PersonMatch:
+      type: object
+      properties:
+        personId: { type: string, format: uuid }
+        name: { type: string }
+        schoolRef: { type: string, nullable: true }
+        hasProfile: { type: boolean }
+    LeaveBalance:
+      type: object
+      properties:
+        leaveType: { type: string, enum: [CASUAL, SICK, EARNED] }
+        allowance: { type: number }
+        approved: { type: number }
+        pending: { type: number }
+        remaining: { type: number }
+    LeaveRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        personId: { type: string, format: uuid }
+        name: { type: string }
+        leaveType: { type: string, enum: [CASUAL, SICK, EARNED, UNPAID] }
+        fromDate: { type: string, format: date }
+        toDate: { type: string, format: date }
+        days: { type: number }
+        reason: { type: string, nullable: true }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED] }
+        decidedBy: { type: string, nullable: true }
+        decisionNote: { type: string, nullable: true }
+        requestedAt: { type: string, format: date-time }
     SupportCaseSummary:
       type: object
       properties:

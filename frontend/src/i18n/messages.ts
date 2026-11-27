@@ -15,6 +15,7 @@ export const en = {
   'nav.safeguarding': 'Safeguarding',
   'nav.health': 'Health',
   'nav.purchasing': 'Purchasing',
+  'nav.staffLeave': 'Staff and leave',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

@@ -63,6 +63,7 @@ jobs:
           $P -f backend/db/tests/safeguarding_test.sql
           $P -f backend/db/tests/health_test.sql
           $P -f backend/db/tests/procurement_test.sql
+          $P -f backend/db/tests/hr_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

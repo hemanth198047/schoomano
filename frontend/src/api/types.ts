@@ -707,3 +707,47 @@ export interface PurchaseRequest {
   paymentReference: string | null;
   history: { from: string | null; to: string; note: string | null; by: string; at: string }[];
 }
+
+export interface StaffMember {
+  personId: string;
+  name: string;
+  employeeNo: string;
+  designation: string;
+  department: string | null;
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT';
+  joinedOn: string;
+  status: 'ACTIVE' | 'LEFT';
+  leftOn: string | null;
+}
+
+export interface PersonMatch {
+  personId: string;
+  name: string;
+  schoolRef: string | null;
+  hasProfile: boolean;
+}
+
+export interface LeaveBalance {
+  leaveType: 'CASUAL' | 'SICK' | 'EARNED';
+  allowance: number;
+  approved: number;
+  pending: number;
+  remaining: number;
+}
+
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface LeaveRequest {
+  id: string;
+  personId: string;
+  name: string;
+  leaveType: string;
+  fromDate: string;
+  toDate: string;
+  days: number;
+  reason: string | null;
+  status: LeaveStatus;
+  decidedBy: string | null;
+  decisionNote: string | null;
+  requestedAt: string;
+}
