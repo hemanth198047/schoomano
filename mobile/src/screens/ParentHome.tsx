@@ -3,12 +3,14 @@ import { ScrollView, View } from 'react-native';
 import { ApiError, type Client } from '../core/api';
 import { formatPaise } from '../core/money';
 import { homeworkLine } from '../core/homework';
+import { activityLine, leaderLine } from '../core/activities';
 import { boardingLines, routeLine } from '../core/transport';
 import { reportLines } from '../core/report';
 import type {
   ChildAttendance,
   InboxItem,
   InvoiceSummary,
+  ChildActivity,
   ChildTransport,
   HomeworkItem,
   Me,
@@ -65,6 +67,7 @@ function ChildView({ client, child }: { client: Client; child: Child }) {
       )}
       {child.capabilities.includes('VIEW_ACADEMIC') && (
         <>
+          <Activities client={client} studentId={child.studentId} />
           <Homework client={client} studentId={child.studentId} />
           <ReportCards client={client} studentId={child.studentId} />
         </>
@@ -102,6 +105,39 @@ function Attendance({ client, studentId }: { client: Client; studentId: string }
           {data.days.length === 0 && <Body muted>No attendance recorded yet.</Body>}
         </>
       )}
+    </Card>
+  );
+}
+
+function Activities({ client, studentId }: { client: Client; studentId: string }) {
+  const [items, setItems] = useState<ChildActivity[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    client
+      .request<ChildActivity[]>(`/api/v1/students/${studentId}/activities`)
+      .then((d) => live && setItems(d))
+      .catch((e: unknown) => {
+        if (!live) return;
+        if (e instanceof ApiError && e.status === 404) setItems([]);
+        else setError(oops(e));
+      });
+    return () => {
+      live = false;
+    };
+  }, [client, studentId]);
+  if (items && items.length === 0) return null;
+  return (
+    <Card>
+      <Heading>Activities</Heading>
+      {error && <Notice kind="error">{error}</Notice>}
+      {!items && !error && <Body muted>Loading…</Body>}
+      {items?.map((a) => (
+        <View key={a.activityId}>
+          <Body strong>{activityLine(a)}</Body>
+          {leaderLine(a) && <Body muted>{leaderLine(a)}</Body>}
+        </View>
+      ))}
     </Card>
   );
 }

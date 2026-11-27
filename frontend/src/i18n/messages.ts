@@ -17,6 +17,7 @@ export const en = {
   'nav.purchasing': 'Purchasing',
   'nav.staffLeave': 'Staff and leave',
   'nav.transport': 'Transport',
+  'nav.activities': 'Activities',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

@@ -14,7 +14,7 @@ public enum GuardianCapability {
     public static Optional<GuardianCapability> forPermission(Permission permission) {
         return Optional.ofNullable(switch (permission) {
             case ATTENDANCE_READ, TRANSPORT_READ -> VIEW_ATTENDANCE;
-            case STUDENT_READ_ACADEMIC -> VIEW_ACADEMIC;
+            case STUDENT_READ_ACADEMIC, ACTIVITY_READ -> VIEW_ACADEMIC;
             case FEE_READ, FEE_PAY -> PAY_FEES;
             case CONSENT_GIVE -> GIVE_CONSENT;
             case NOTICE_RECEIVE -> RECEIVE_NOTICES;

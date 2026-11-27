@@ -2527,6 +2527,158 @@ paths:
       responses:
         '200': { description: Transport, content: { application/json: { schema: { $ref: '#/components/schemas/ChildTransport' } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/activities:
+    get:
+      tags: [Activities]
+      summary: Activities of the year with member and session counts (ACTIVITY_READ)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Activities, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Activity' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Activities]
+      summary: Add an activity (ACTIVITY_MANAGE). The name is unique within the year
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, kind]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80 }
+                kind: { type: string, enum: [CLUB, SPORT, ARTS, OTHER] }
+                capacity: { type: integer, minimum: 1, maximum: 500, description: Omit for no limit }
+                leadName: { type: string, minLength: 2, maxLength: 80 }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/Activity' } } } }
+        '400': { description: Invalid fields, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: duplicate_activity, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/activities/{id}/close:
+    post:
+      tags: [Activities]
+      summary: Close an activity (ACTIVITY_MANAGE). A closed activity takes no members or sessions and stays closed
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Closed, content: { application/json: { schema: { $ref: '#/components/schemas/Activity' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/activities/{id}/members:
+    get:
+      tags: [Activities]
+      summary: Current members (ACTIVITY_READ)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Members, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ActivityMember' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Activities]
+      summary: Put a student in the activity (ACTIVITY_MANAGE). Only students enrolled in the activity's year; the seat limit is enforced in the database
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId]
+              properties:
+                studentId: { type: string, format: uuid }
+      responses:
+        '201': { description: Joined }
+        '400': { description: invalid_member, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: activity_full, already_member or activity_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/activity-members/{id}/withdraw:
+    post:
+      tags: [Activities]
+      summary: Withdraw a member (ACTIVITY_MANAGE). Membership is never edited; the child can join again later
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Withdrawn }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_withdrawn, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/activities/{id}/sessions:
+    get:
+      tags: [Activities]
+      summary: Sessions, newest first, with how many came and missed (ACTIVITY_READ)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Sessions, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ActivitySession' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Activities]
+      summary: Add a session (ACTIVITY_ATTENDANCE). One per activity per day; future sessions may be planned
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionDate]
+              properties:
+                sessionDate: { type: string, format: date }
+                topic: { type: string, minLength: 2, maxLength: 200 }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/ActivitySession' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: duplicate_session or activity_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/activity-sessions/{id}/attendance:
+    get:
+      tags: [Activities]
+      summary: Who came to a session (ACTIVITY_READ)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Attendance, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ActivityAttendance' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Activities]
+      summary: Record who came (ACTIVITY_ATTENDANCE). Permanent and idempotent per child; everyone marked must have been a member on the day and the day cannot be in the future
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [marks]
+              properties:
+                marks:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [studentId, present]
+                    properties:
+                      studentId: { type: string, format: uuid }
+                      present: { type: boolean }
+      responses:
+        '200': { description: Recorded; alreadyRecorded counts children who already had a mark }
+        '400': { description: not_a_member, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/activities:
+    get:
+      tags: [Activities]
+      summary: A child's current activities with sessions held and attended (ACTIVITY_READ). Guardians need the view-academic capability; otherwise 404
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Activities, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChildActivity' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -3681,3 +3833,45 @@ components:
         driverName: { type: string }
         driverPhone: { type: string, nullable: true }
         today: { type: array, items: { $ref: '#/components/schemas/TransportBoarding' } }
+    Activity:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { type: string, enum: [CLUB, SPORT, ARTS, OTHER] }
+        capacity: { type: integer, nullable: true }
+        leadName: { type: string, nullable: true }
+        status: { type: string, enum: [OPEN, CLOSED] }
+        members: { type: integer }
+        sessions: { type: integer }
+    ActivityMember:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        name: { type: string }
+        joinedOn: { type: string, format: date }
+    ActivitySession:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sessionDate: { type: string, format: date }
+        topic: { type: string, nullable: true }
+        present: { type: integer }
+        absent: { type: integer }
+    ActivityAttendance:
+      type: object
+      properties:
+        studentId: { type: string, format: uuid }
+        name: { type: string }
+        present: { type: boolean }
+    ChildActivity:
+      type: object
+      properties:
+        activityId: { type: string, format: uuid }
+        name: { type: string }
+        kind: { type: string }
+        leadName: { type: string, nullable: true }
+        joinedOn: { type: string, format: date }
+        sessions: { type: integer }
+        attended: { type: integer }

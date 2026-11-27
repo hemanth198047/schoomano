@@ -131,3 +131,13 @@ export interface ChildTransport {
   driverPhone: string | null;
   today: BoardingEvent[];
 }
+
+export interface ChildActivity {
+  activityId: string;
+  name: string;
+  kind: string;
+  leadName: string | null;
+  joinedOn: string;
+  sessions: number;
+  attended: number;
+}

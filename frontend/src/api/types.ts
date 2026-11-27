@@ -793,3 +793,29 @@ export interface RosterEntry {
   pickupTime: string;
   today: BoardingRecord[];
 }
+
+export interface Activity {
+  id: string;
+  name: string;
+  kind: 'CLUB' | 'SPORT' | 'ARTS' | 'OTHER';
+  capacity: number | null;
+  leadName: string | null;
+  status: 'OPEN' | 'CLOSED';
+  members: number;
+  sessions: number;
+}
+
+export interface ActivityMember {
+  id: string;
+  studentId: string;
+  name: string;
+  joinedOn: string;
+}
+
+export interface ActivitySession {
+  id: string;
+  sessionDate: string;
+  topic: string | null;
+  present: number;
+  absent: number;
+}
