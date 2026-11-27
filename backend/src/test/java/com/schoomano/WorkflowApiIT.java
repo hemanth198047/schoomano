@@ -43,10 +43,10 @@ class WorkflowApiIT extends ApiITSupport {
 
     @Test
     void chainsAreVersionedAndRequestsWalkThemOneStepAtATime() throws Exception {
-        staff("g01", "dev-wf-g01", "campus_admin");
-        staff("g02", "dev-wf-g02", "teacher");
-        staff("g03", "dev-wf-g03", "principal");
-        staff("g04", "dev-wf-g04", "finance_officer");
+        staff("d11", "dev-wf-g01", "campus_admin");
+        staff("d12", "dev-wf-g02", "teacher");
+        staff("d13", "dev-wf-g03", "principal");
+        staff("d14", "dev-wf-g04", "finance_officer");
         String chains = "/api/v1/campuses/" + CAMPUS + "/workflow-chains";
         String requests = "/api/v1/campuses/" + CAMPUS + "/workflow-requests";
         String chain = "{\"chainKey\":\"it-trip-spend\",\"name\":\"IT Trip spend\",\"steps\":[{\"roleKey\":\"principal\",\"label\":\"Principal\"},{\"roleKey\":\"finance_officer\",\"label\":\"Finance\"}]}";
