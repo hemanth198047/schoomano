@@ -2195,6 +2195,7 @@ paths:
                 title: { type: string, minLength: 3, maxLength: 200 }
                 description: { type: string, maxLength: 2000 }
                 amountPaise: { type: integer, format: int64, minimum: 1 }
+                chainId: { type: string, format: uuid, nullable: true, description: A published approval chain of the campus. When given the request is decided only through the chain }
       responses:
         '201': { description: Raised, content: { application/json: { schema: { $ref: '#/components/schemas/PurchaseRequest' } } } }
         '400': { $ref: '#/components/responses/Problem' }
@@ -3462,6 +3463,8 @@ components:
         needsPrincipal: { type: boolean }
         paidPaise: { type: integer, format: int64, nullable: true }
         paymentReference: { type: string, nullable: true }
+        workflowRequestId: { type: string, format: uuid, nullable: true }
+        waitingFor: { type: string, nullable: true, description: The chain step the request is waiting at }
         history:
           type: array
           items:

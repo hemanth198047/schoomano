@@ -705,6 +705,8 @@ export interface PurchaseRequest {
   needsPrincipal: boolean;
   paidPaise: number | null;
   paymentReference: string | null;
+  workflowRequestId: string | null;
+  waitingFor: string | null;
   history: { from: string | null; to: string; note: string | null; by: string; at: string }[];
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ApiError, apiRequest } from '../api/client';
 import type {
+  WorkflowChain,
   AcademicStructure,
   Budget,
   Campus,
@@ -96,6 +97,7 @@ function Body({ me, campusId, yearId }: { me: Me; campusId: string; yearId: stri
     `/api/v1/academic-years/${yearId}/purchase-requests`,
   );
   const [vendors, reloadVendors] = useApiResource<Vendor[]>(`/api/v1/campuses/${campusId}/vendors`);
+  const [chains] = useApiResource<WorkflowChain[]>(`/api/v1/campuses/${campusId}/workflow-chains`);
   const refresh = () => {
     reloadBudgets();
     reloadRequests();
@@ -128,6 +130,7 @@ function Body({ me, campusId, yearId }: { me: Me; campusId: string; yearId: stri
           yearId={yearId}
           budgets={budgets.data}
           vendors={vendors.status === 'ready' ? vendors.data : []}
+          chains={chains.status === 'ready' ? chains.data.filter((c) => c.status === 'PUBLISHED') : []}
           onSaved={refresh}
         />
       )}
@@ -240,16 +243,19 @@ function Raise({
   yearId,
   budgets,
   vendors,
+  chains,
   onSaved,
 }: {
   yearId: string;
   budgets: Budget[];
   vendors: Vendor[];
+  chains: WorkflowChain[];
   onSaved: () => void;
 }) {
   const session = useApiSession();
   const [budgetId, setBudgetId] = useState('');
   const [vendorId, setVendorId] = useState('');
+  const [chainId, setChainId] = useState('');
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -268,6 +274,7 @@ function Raise({
           title: title.trim(),
           description: description.trim() || undefined,
           amountPaise: paise,
+          chainId: chainId || undefined,
         },
       });
       setTitle('');
@@ -308,6 +315,23 @@ function Raise({
             </select>
           )}
         </Field>
+        {chains.length > 0 && (
+          <Field
+            label="Approval chain"
+            hint="Optional. Without one, the principal or office approves directly"
+          >
+            {(p) => (
+              <select {...p} value={chainId} onChange={(e) => setChainId(e.target.value)}>
+                <option value="">Approve directly</option>
+                {chains.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.steps.map((st) => st.label).join(', then ')})
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        )}
         <Field label="What is needed">
           {(p) => <input {...p} value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />}
         </Field>
@@ -388,7 +412,13 @@ function RequestRow({ me, r, onChanged }: { me: Me; r: PurchaseRequest; onChange
       )}
       {r.status === 'SUBMITTED' && (
         <div>
-          {canApprove(me) && !mine && (
+          {r.workflowRequestId && (
+            <p className="muted">
+              In the approval chain{r.waitingFor ? `, waiting for ${r.waitingFor}` : ''}. Decide it on the
+              Approvals page.
+            </p>
+          )}
+          {canApprove(me) && !mine && !r.workflowRequestId && (
             <>
               <Field label={`Note for ${r.title}`} hint="Required to reject">
                 {(p) => <input {...p} value={note} onChange={(e) => setNote(e.target.value)} />}

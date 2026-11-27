@@ -216,6 +216,9 @@ public class WorkflowController {
             } else {
                 jdbc.update("update workflow_request set current_step = ? where id = ?", step + 1, id);
             }
+            if (!"PENDING".equals(jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id))) {
+                settlePurchase(jdbc, ctx, id, jdbc.queryForObject("select status from workflow_request where id = ?", String.class, id), req.note());
+            }
             audit.write(jdbc, ctx, "workflow.request_" + req.decision().toLowerCase(), "workflow_request", id.toString(), "SUCCESS", null, Map.of("step", step));
             return request(jdbc, ctx, id);
         });
@@ -232,6 +235,7 @@ public class WorkflowController {
             if (jdbc.update("update workflow_request set status = 'WITHDRAWN', closed_at = clock_timestamp() where id = ? and status = 'PENDING'", id) == 0) {
                 throw new ApiException(HttpStatus.CONFLICT, "request_closed", "This request is already closed.");
             }
+            settlePurchase(jdbc, ctx, id, "WITHDRAWN", null);
             audit.write(jdbc, ctx, "workflow.request_withdrawn", "workflow_request", id.toString(), "SUCCESS", null, Map.of());
             return request(jdbc, ctx, id);
         });
@@ -256,6 +260,25 @@ public class WorkflowController {
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------
+
+    /** A purchase request linked to a closed workflow request follows its outcome; the database refuses any other route. */
+    private void settlePurchase(JdbcTemplate jdbc, RequestContext ctx, UUID workflowId, String outcome, String note) {
+        String to = switch (outcome) { case "APPROVED" -> "APPROVED"; case "REJECTED" -> "REJECTED"; default -> "CANCELLED"; };
+        List<UUID> linked = jdbc.queryForList("select id from purchase_request where workflow_request_id = ? and status = 'SUBMITTED'", UUID.class, workflowId);
+        for (UUID purchaseId : linked) {
+            try {
+                jdbc.update("update purchase_request set status = ?, decided_by = ? where id = ?", to, ctx.actor().personId(), purchaseId);
+            } catch (DataIntegrityViolationException e) {
+                if (String.valueOf(e.getMostSpecificCause().getMessage()).contains("over budget")) {
+                    throw new ApiException(HttpStatus.CONFLICT, "over_budget", "The budget does not have room for this purchase, so it cannot be approved.");
+                }
+                throw e;
+            }
+            jdbc.update("insert into purchase_event (tenant_id, request_id, from_status, to_status, note, actor_person_id) values (?, ?, 'SUBMITTED', ?, ?, ?)",
+                ctx.tenant().value(), purchaseId, to, note == null || note.isBlank() ? null : note.trim(), ctx.actor().personId());
+            audit.write(jdbc, ctx, "procurement." + to.toLowerCase(), "purchase_request", purchaseId.toString(), "SUCCESS", null, Map.of("viaWorkflow", true));
+        }
+    }
 
     private boolean allowed(JdbcTemplate jdbc, RequestContext ctx, Permission permission, UUID campusId) {
         return authz.check(jdbc, ctx, permission, Resource.ordinary("workflow", null, access.campusPath(jdbc, ctx, campusId), null)).allowed();

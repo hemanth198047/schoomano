@@ -70,6 +70,7 @@ jobs:
           $P -f backend/db/tests/facilities_test.sql
           $P -f backend/db/tests/compliance_test.sql
           $P -f backend/db/tests/workflow_test.sql
+          $P -f backend/db/tests/purchase_workflow_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

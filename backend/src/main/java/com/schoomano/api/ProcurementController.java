@@ -65,7 +65,7 @@ public class ProcurementController {
     public record BudgetView(UUID id, String category, long amountPaise, long committedPaise, long paidPaise) { }
 
     public record RequestCreate(@NotNull UUID budgetId, UUID vendorId, @NotBlank @Size(min = 3, max = 200) String title,
-                                @Size(max = 2000) String description, @Min(1) long amountPaise) { }
+                                @Size(max = 2000) String description, @Min(1) long amountPaise, UUID chainId) { }
 
     public record Decision(@NotNull @Pattern(regexp = "APPROVE|REJECT|CANCEL") String decision, @Size(max = 2000) String note) { }
 
@@ -75,7 +75,7 @@ public class ProcurementController {
 
     public record RequestView(UUID id, UUID budgetId, String category, String vendor, String title, String description,
                               long amountPaise, String status, String requestedBy, OffsetDateTime requestedAt, boolean needsPrincipal,
-                              Long paidPaise, String paymentReference, List<EventView> history) { }
+                              Long paidPaise, String paymentReference, UUID workflowRequestId, String waitingFor, List<EventView> history) { }
 
     private record Req(UUID id, UUID campusId, UUID yearId, UUID budgetId, long amount, UUID requestedBy, String status) { }
 
@@ -158,11 +158,23 @@ public class ProcurementController {
                 req.vendorId(), year.campusId()) == 0) {
                 throw ApiException.badRequest("unknown_vendor", "Choose a vendor of this campus.");
             }
+            UUID workflowId = null;
+            if (req.chainId() != null) {
+                authz.requireOrNotFound(jdbc, ctx, Permission.WORKFLOW_SUBMIT, Resource.ordinary("workflow", null, access.campusPath(jdbc, ctx, year.campusId()), null));
+                try {
+                    workflowId = jdbc.queryForObject("""
+                        insert into workflow_request (tenant_id, campus_id, definition_id, requester_id, subject, details) values (?, ?, ?, ?, ?, ?) returning id
+                        """, UUID.class, ctx.tenant().value(), year.campusId(), req.chainId(), ctx.actor().personId(), ("Purchase: " + req.title().trim()).substring(0, Math.min(160, 10 + req.title().trim().length())),
+                        String.format("Amount: Rs %d.%02d", req.amountPaise() / 100, req.amountPaise() % 100));
+                } catch (DataIntegrityViolationException e) {
+                    throw ApiException.badRequest("unknown_chain", "Choose a published approval chain of this campus.");
+                }
+            }
             UUID id = jdbc.queryForObject("""
-                insert into purchase_request (tenant_id, campus_id, academic_year_id, budget_id, vendor_id, title, description, amount_paise, requested_by)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?) returning id
+                insert into purchase_request (tenant_id, campus_id, academic_year_id, budget_id, vendor_id, title, description, amount_paise, requested_by, workflow_request_id)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) returning id
                 """, UUID.class, ctx.tenant().value(), year.campusId(), yearId, req.budgetId(), req.vendorId(), req.title().trim(),
-                blank(req.description()), req.amountPaise(), ctx.actor().personId());
+                blank(req.description()), req.amountPaise(), ctx.actor().personId(), workflowId);
             jdbc.update("insert into purchase_event (tenant_id, request_id, to_status, actor_person_id) values (?, ?, 'SUBMITTED', ?)",
                 ctx.tenant().value(), id, ctx.actor().personId());
             audit.write(jdbc, ctx, "procurement.requested", "purchase_request", id.toString(), "SUCCESS", null, Map.of("amountPaise", req.amountPaise()));
@@ -214,9 +226,16 @@ public class ProcurementController {
             if ("REJECT".equals(req.decision()) && (note == null || note.length() < 5)) {
                 throw ApiException.badRequest("note_required", "Say why the request is rejected (5 characters or more).");
             }
+            UUID linked = jdbc.queryForObject("select workflow_request_id from purchase_request where id = ?", UUID.class, id);
+            if (linked != null && !"CANCEL".equals(req.decision())) {
+                throw new ApiException(HttpStatus.CONFLICT, "use_approvals", "This request is decided through its approval chain on the Approvals page.");
+            }
             String to = switch (req.decision()) { case "APPROVE" -> "APPROVED"; case "REJECT" -> "REJECTED"; default -> "CANCELLED"; };
             if (!"SUBMITTED".equals(r.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, "not_pending", "This request is already " + r.status().toLowerCase() + ".");
+            }
+            if (linked != null) {
+                jdbc.update("update workflow_request set status = 'WITHDRAWN', closed_at = clock_timestamp() where id = ? and status = 'PENDING'", linked);
             }
             try {
                 jdbc.update("update purchase_request set status = ?, decided_by = ? where id = ?", to, ctx.actor().personId(), id);
@@ -297,7 +316,9 @@ public class ProcurementController {
             """, (rs, i) -> new EventView(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getObject(5, OffsetDateTime.class)), id);
         return jdbc.query("""
             select r.id, r.budget_id, b.category, v.name, r.title, r.description, r.amount_paise, r.status,
-                   trim(coalesce(q.given_name, '') || ' ' || coalesce(q.family_name, '')), r.requested_at, pay.amount_paise, pay.reference
+                   trim(coalesce(q.given_name, '') || ' ' || coalesce(q.family_name, '')), r.requested_at, pay.amount_paise, pay.reference, r.workflow_request_id,
+                   (select s.label from workflow_request w join workflow_step s on s.tenant_id = w.tenant_id and s.definition_id = w.definition_id and s.position = w.current_step
+                     where w.id = r.workflow_request_id and w.status = 'PENDING')
               from purchase_request r
               join budget b on b.tenant_id = r.tenant_id and b.id = r.budget_id
               left join vendor v on v.tenant_id = r.tenant_id and v.id = r.vendor_id
@@ -306,7 +327,7 @@ public class ProcurementController {
              where r.id = ?
             """, (rs, i) -> new RequestView(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4),
                 rs.getString(5), rs.getString(6), rs.getLong(7), rs.getString(8), rs.getString(9), rs.getObject(10, OffsetDateTime.class),
-                rs.getLong(7) > LARGE_PAISE, (Long) rs.getObject(11), rs.getString(12), history), id).get(0);
+                rs.getLong(7) > LARGE_PAISE, (Long) rs.getObject(11), rs.getString(12), rs.getObject(13, UUID.class), rs.getString(14), history), id).get(0);
     }
 
     private static String blank(String s) {

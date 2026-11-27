@@ -39,6 +39,8 @@ const request = (status: string) => ({
   needsPrincipal: false,
   paidPaise: null,
   paymentReference: null,
+  workflowRequestId: null as string | null,
+  waitingFor: null as string | null,
   history: [],
 });
 
@@ -119,5 +121,44 @@ describe('PurchasingPage', () => {
     await user.click(screen.getByRole('button', { name: 'Record payment for Ten microscopes' }));
     const pay = calls.find((c) => c.url.endsWith('/payment'));
     expect(JSON.parse(String(pay?.init.body))).toMatchObject({ amountPaise: 600000, reference: 'NEFT-9' });
+  });
+
+  it('sends a request through an approval chain and keeps direct approval off it', async () => {
+    const calls = stubFetch((url, init) => {
+      if (url.includes('/academic-structure')) return { body: structure };
+      if (url.endsWith('/purchase-requests') && init.method === 'POST')
+        return { status: 201, body: request('SUBMITTED') };
+      if (url.includes('/workflow-chains'))
+        return {
+          body: [
+            {
+              id: 'c1',
+              chainKey: 'buy',
+              version: 1,
+              name: 'Big buys',
+              status: 'PUBLISHED',
+              steps: [{ position: 1, roleKey: 'principal', label: 'Principal' }],
+            },
+          ],
+        };
+      if (url.includes('/budgets')) return { body: [budget] };
+      if (url.includes('/vendors')) return { body: [] };
+      if (url.includes('/purchase-requests'))
+        return { body: [{ ...request('SUBMITTED'), workflowRequestId: 'w1', waitingFor: 'Principal' }] };
+      return { status: 404, body: { code: 'not_found', detail: 'no' } };
+    });
+    const user = userEvent.setup();
+    renderWithApp(
+      <PurchasingPage me={person('campus_admin', 'Chitra')} campuses={campuses} selectedCampusId="n" />,
+    );
+    expect(await screen.findByText(/waiting for Principal/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Budget'), 'b1');
+    await user.selectOptions(screen.getByLabelText(/Approval chain/), 'c1');
+    await user.type(screen.getByLabelText(/What is needed/), 'Projector');
+    await user.type(screen.getByLabelText(/Amount \(₹\)/), '4,500');
+    await user.click(screen.getByRole('button', { name: 'Send request' }));
+    const post = calls.find((c) => c.init.method === 'POST' && c.url.endsWith('/purchase-requests'));
+    expect(JSON.parse(String(post?.init.body))).toMatchObject({ chainId: 'c1', title: 'Projector' });
   });
 });

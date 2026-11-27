@@ -114,4 +114,49 @@ class WorkflowApiIT extends ApiITSupport {
         mvc.perform(as(get(chains), "dev-other")).andExpect(status().isNotFound());
         mvc.perform(as(get("/api/v1/workflow-requests/" + reqId), "dev-other")).andExpect(status().isNotFound());
     }
+
+    @Test
+    void purchaseRequestsCanBeApprovedThroughAChain() throws Exception {
+        staff("d21", "dev-wf-d21", "teacher");
+        staff("d22", "dev-wf-d22", "principal");
+        staff("d23", "dev-wf-d23", "finance_officer");
+        String chains = "/api/v1/campuses/" + CAMPUS + "/workflow-chains";
+        String chainId = JsonPath.read(create(chains, "dev-asha", "{\"chainKey\":\"it-buy-one\",\"name\":\"IT Buy one step\",\"steps\":[{\"roleKey\":\"principal\",\"label\":\"Principal\"}]}"), "$.id");
+        mvc.perform(json(post("/api/v1/workflow-chains/" + chainId + "/publish"), "dev-asha", "{}")).andExpect(status().isOk());
+        String year = "15000000-0000-4000-8000-000000000001";
+        String budget = JsonPath.read(mvc.perform(json(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/academic-years/" + year + "/budgets"),
+            "dev-wf-d23", "{\"category\":\"IT Chain budget\",\"amountPaise\":100000}")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.id");
+        String requests = "/api/v1/academic-years/" + year + "/purchase-requests";
+
+        // A made-up chain is refused; a real one holds the request until the principal decides in the chain.
+        mvc.perform(json(post(requests), "dev-wf-d21", "{\"budgetId\":\"" + budget + "\",\"title\":\"Bad chain\",\"amountPaise\":100,\"chainId\":\"" + budget + "\"}"))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("unknown_chain"));
+        String body = "{\"budgetId\":\"" + budget + "\",\"title\":\"Projector via chain\",\"amountPaise\":60000,\"chainId\":\"" + chainId + "\"}";
+        String created = create(requests, "dev-wf-d21", body);
+        String purchase = JsonPath.read(created, "$.id");
+        String wf = JsonPath.read(created, "$.workflowRequestId");
+        assertEquals("Principal", JsonPath.read(created, "$.waitingFor"));
+        mvc.perform(json(post("/api/v1/purchase-requests/" + purchase + "/decision"), "dev-wf-d22", "{\"decision\":\"APPROVE\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("use_approvals"));
+        mvc.perform(json(post("/api/v1/workflow-requests/" + wf + "/decision"), "dev-wf-d21", "{\"decision\":\"APPROVED\"}")).andExpect(status().isNotFound());
+        mvc.perform(json(post("/api/v1/workflow-requests/" + wf + "/decision"), "dev-wf-d22", "{\"decision\":\"APPROVED\"}")).andExpect(status().isOk());
+        mvc.perform(as(get(requests), "dev-wf-d21")).andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id=='" + purchase + "')].status").value("APPROVED"));
+        assertEquals(1, ownerCount("select count(*) from audit_event where action = 'procurement.approved' and resource_id = '" + purchase + "'"));
+
+        // A rejection in the chain rejects the purchase; the requester cancelling withdraws the chain request.
+        String second = create(requests, "dev-wf-d21", body.replace("Projector", "Screens"));
+        mvc.perform(json(post("/api/v1/workflow-requests/" + JsonPath.read(second, "$.workflowRequestId") + "/decision"), "dev-wf-d22",
+            "{\"decision\":\"REJECTED\",\"note\":\"Not now\"}")).andExpect(status().isOk());
+        mvc.perform(as(get(requests), "dev-wf-d21")).andExpect(jsonPath("$[?(@.title=='Screens via chain')].status").value("REJECTED"));
+        String third = create(requests, "dev-wf-d21", body.replace("Projector", "Chairs").replace("60000", "1000"));
+        mvc.perform(json(post("/api/v1/purchase-requests/" + JsonPath.read(third, "$.id") + "/decision"), "dev-wf-d21", "{\"decision\":\"CANCEL\"}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"));
+        assertEquals("WITHDRAWN", ownerString("select status from workflow_request where id = '" + JsonPath.read(third, "$.workflowRequestId") + "'"));
+
+        // The budget still has to have room when the chain approves.
+        String fourth = create(requests, "dev-wf-d21", body.replace("Projector", "Cabinets").replace("60000", "50000"));
+        mvc.perform(json(post("/api/v1/workflow-requests/" + JsonPath.read(fourth, "$.workflowRequestId") + "/decision"), "dev-wf-d22", "{\"decision\":\"APPROVED\"}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("over_budget"));
+        assertEquals("PENDING", ownerString("select status from workflow_request where id = '" + JsonPath.read(fourth, "$.workflowRequestId") + "'"));
+    }
 }
