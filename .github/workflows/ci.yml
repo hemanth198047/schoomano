@@ -67,6 +67,7 @@ jobs:
           $P -f backend/db/tests/transport_test.sql
           $P -f backend/db/tests/cocurricular_test.sql
           $P -f backend/db/tests/trips_test.sql
+          $P -f backend/db/tests/facilities_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

@@ -2820,6 +2820,112 @@ paths:
       responses:
         '200': { description: Trips, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ChildTrip' } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/rooms/{roomId}/bookings:
+    post:
+      tags: [Facilities]
+      summary: Book a room (FACILITY_REQUEST). Two bookings of a room never overlap and each lasts at most 12 hours; booking in the past is refused
+      parameters:
+        - { name: roomId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, startsAt, endsAt]
+              properties:
+                purpose: { type: string, minLength: 2, maxLength: 200 }
+                startsAt: { type: string, format: date-time }
+                endsAt: { type: string, format: date-time }
+      responses:
+        '201': { description: Booked, content: { application/json: { schema: { $ref: '#/components/schemas/RoomBooking' } } } }
+        '400': { description: invalid_time, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: room_booked or room_retired, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/bookings:
+    get:
+      tags: [Facilities]
+      summary: Booked rooms in a date range, default the next 14 days (FACILITY_READ). mine marks the caller's bookings
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Bookings, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/RoomBooking' } } } } }
+        '400': { description: invalid_range, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/bookings/{id}/cancel:
+    post:
+      tags: [Facilities]
+      summary: Cancel a booking (the booker with FACILITY_REQUEST, or FACILITY_MANAGE). Cancelled bookings stay cancelled
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Cancelled, content: { application/json: { schema: { $ref: '#/components/schemas/RoomBooking' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_cancelled, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/maintenance:
+    get:
+      tags: [Facilities]
+      summary: Maintenance requests, urgent open ones first (FACILITY_READ)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED] } }
+      responses:
+        '200': { description: Requests, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MaintenanceIssue' } } } } }
+        '400': { description: invalid_status, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Facilities]
+      summary: Report a problem (FACILITY_REQUEST), optionally in a room of this campus
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, priority]
+              properties:
+                roomId: { type: string, format: uuid }
+                title: { type: string, minLength: 3, maxLength: 120 }
+                description: { type: string, maxLength: 2000 }
+                priority: { type: string, enum: [LOW, NORMAL, URGENT] }
+      responses:
+        '201': { description: Reported, content: { application/json: { schema: { $ref: '#/components/schemas/MaintenanceIssue' } } } }
+        '400': { description: unknown_room, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/maintenance/{id}/start:
+    post:
+      tags: [Facilities]
+      summary: Start work on an open request (FACILITY_MANAGE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Started, content: { application/json: { schema: { $ref: '#/components/schemas/MaintenanceIssue' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: not_open, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/maintenance/{id}/resolve:
+    post:
+      tags: [Facilities]
+      summary: Resolve a request that is in progress, with a note of what was done (FACILITY_MANAGE). Resolved requests stay as they are
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution]
+              properties:
+                resolution: { type: string, minLength: 2, maxLength: 1000 }
+      responses:
+        '200': { description: Resolved, content: { application/json: { schema: { $ref: '#/components/schemas/MaintenanceIssue' } } } }
+        '400': { description: A note is required, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: not_in_progress, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -4053,3 +4159,29 @@ components:
         status: { type: string }
         consent: { type: string, enum: [NONE, GIVEN, DECLINED] }
         canDecide: { type: boolean }
+    RoomBooking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        roomId: { type: string, format: uuid }
+        roomName: { type: string }
+        purpose: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        bookedBy: { type: string }
+        mine: { type: boolean }
+        status: { type: string, enum: [BOOKED, CANCELLED] }
+    MaintenanceIssue:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        roomId: { type: string, format: uuid, nullable: true }
+        roomName: { type: string, nullable: true }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        priority: { type: string, enum: [LOW, NORMAL, URGENT] }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED] }
+        reportedBy: { type: string }
+        reportedAt: { type: string, format: date-time }
+        resolution: { type: string, nullable: true }
+        resolvedAt: { type: string, format: date-time, nullable: true }

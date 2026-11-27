@@ -19,6 +19,7 @@ export const en = {
   'nav.transport': 'Transport',
   'nav.activities': 'Activities',
   'nav.trips': 'Trips',
+  'nav.facilities': 'Facilities',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

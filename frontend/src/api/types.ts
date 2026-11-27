@@ -844,3 +844,37 @@ export interface TripParticipant {
   departed: boolean;
   returned: boolean;
 }
+
+export interface FacilityRoom {
+  id: string;
+  code: string;
+  name: string;
+  capacity: number | null;
+  status: string;
+}
+
+export interface RoomBooking {
+  id: string;
+  roomId: string;
+  roomName: string;
+  purpose: string;
+  startsAt: string;
+  endsAt: string;
+  bookedBy: string;
+  mine: boolean;
+  status: 'BOOKED' | 'CANCELLED';
+}
+
+export interface MaintenanceIssue {
+  id: string;
+  roomId: string | null;
+  roomName: string | null;
+  title: string;
+  description: string | null;
+  priority: 'LOW' | 'NORMAL' | 'URGENT';
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  reportedBy: string;
+  reportedAt: string;
+  resolution: string | null;
+  resolvedAt: string | null;
+}
