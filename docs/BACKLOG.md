@@ -36,7 +36,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B17** (done, verified in CI) Finance and procurement | M15 | B4 | Budgets per campus, year and category; purchase requests approved by someone else within budget (principal above 50,000 rupees); vendor payments recorded once; history permanent |
 | **B18** (done, verified in CI) HR and workforce | M16 | B4 | Staff profiles, yearly leave allowances, leave requests approved by someone else within balance; decisions final |
 | **B19** (done, verified in CI) Transport | M17 | B4 | Vehicles, routes with stops, student assignments within vehicle capacity, boarding records, guardian view of own child |
-| **B20** (done, CI pending) Co-curricular | M18 | B4 | Activities with seat limits, student membership, session attendance, guardian view of own child |
+| **B20** (done, verified in CI) Co-curricular | M18 | B4 | Activities with seat limits, student membership, session attendance, guardian view of own child |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 
