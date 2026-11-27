@@ -928,3 +928,38 @@ export interface AnalyticsOverview {
     overduePaise: number;
   };
 }
+
+export interface WorkflowStep {
+  position: number;
+  roleKey: string;
+  label: string;
+  decision: 'APPROVED' | 'REJECTED' | null;
+  decidedBy: string | null;
+  note: string | null;
+  decidedAt: string | null;
+}
+
+export interface WorkflowChain {
+  id: string;
+  chainKey: string;
+  version: number;
+  name: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'RETIRED';
+  steps: WorkflowStep[];
+}
+
+export interface WorkflowRequest {
+  id: string;
+  chainName: string;
+  chainVersion: number;
+  subject: string;
+  details: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN';
+  currentStep: number;
+  waitingFor: string | null;
+  requester: string;
+  mine: boolean;
+  submittedAt: string;
+  closedAt: string | null;
+  steps: WorkflowStep[];
+}

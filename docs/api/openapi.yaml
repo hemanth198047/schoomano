@@ -3192,6 +3192,127 @@ paths:
       responses:
         '200': { description: Checks, content: { application/json: { schema: { type: object, properties: { at: { type: string, format: date-time }, supportAccessLive: { type: integer }, checks: { type: array, items: { type: object, properties: { key: { type: string }, label: { type: string }, level: { type: string, enum: [OK, ATTENTION] }, detail: { type: string } } } } } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/workflow-chains:
+    get:
+      tags: [Workflow]
+      summary: Approval chains of the campus. Leaders (WORKFLOW_READ) see every version, submitters see only the published ones
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Chains, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/WorkflowChain' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Workflow]
+      summary: Draft a new version of a chain with its ordered steps (WORKFLOW_DESIGN). The version is the next number for the chain key
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chainKey, name, steps]
+              properties:
+                chainKey: { type: string, pattern: '^[a-z][a-z0-9-]{2,40}$' }
+                name: { type: string, minLength: 3, maxLength: 120 }
+                steps:
+                  type: array
+                  minItems: 1
+                  maxItems: 8
+                  items:
+                    type: object
+                    required: [roleKey, label]
+                    properties:
+                      roleKey: { type: string, description: The role that must approve this step }
+                      label: { type: string, minLength: 2, maxLength: 80 }
+      responses:
+        '201': { description: Drafted, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowChain' } } } }
+        '400': { description: Invalid fields, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: chain_conflict, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/workflow-chains/{id}/publish:
+    post:
+      tags: [Workflow]
+      summary: Publish a draft (WORKFLOW_DESIGN). The previously published version of the same chain is retired
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Published, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowChain' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: not_a_draft, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/workflow-requests:
+    get:
+      tags: [Workflow]
+      summary: Requests as mine (submitted by the caller), inbox (waiting for a step the caller holds the role for) or all (WORKFLOW_READ)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: view, in: query, schema: { type: string, enum: [mine, inbox, all], default: mine } }
+      responses:
+        '200': { description: Requests, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/WorkflowRequest' } } } } }
+        '400': { description: invalid_view, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Workflow]
+      summary: Send a request through a published chain of this campus (WORKFLOW_SUBMIT)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chainId, subject]
+              properties:
+                chainId: { type: string, format: uuid }
+                subject: { type: string, minLength: 3, maxLength: 160 }
+                details: { type: string, maxLength: 2000 }
+      responses:
+        '201': { description: Submitted, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowRequest' } } } }
+        '400': { description: unknown_chain, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/workflow-requests/{id}:
+    get:
+      tags: [Workflow]
+      summary: One request with its steps and decisions. Visible to the requester, leaders and holders of a step role
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Request, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowRequest' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/workflow-requests/{id}/decision:
+    post:
+      tags: [Workflow]
+      summary: Approve or reject the current step (WORKFLOW_DECIDE plus the step's role). Never the requester. A rejection needs a note and closes the request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [APPROVED, REJECTED] }
+                note: { type: string, maxLength: 1000 }
+      responses:
+        '200': { description: Decided, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowRequest' } } } }
+        '400': { description: note_required, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: request_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/workflow-requests/{id}/withdraw:
+    post:
+      tags: [Workflow]
+      summary: The requester withdraws an open request
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Withdrawn, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowRequest' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: request_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
 
 components:
   securitySchemes:
@@ -4270,6 +4391,41 @@ components:
         reportedAt: { type: string, format: date-time }
         resolution: { type: string, nullable: true }
         resolvedAt: { type: string, format: date-time, nullable: true }
+    WorkflowStep:
+      type: object
+      properties:
+        position: { type: integer }
+        roleKey: { type: string }
+        label: { type: string }
+        decision: { type: string, enum: [APPROVED, REJECTED], nullable: true }
+        decidedBy: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        decidedAt: { type: string, format: date-time, nullable: true }
+    WorkflowChain:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        chainKey: { type: string }
+        version: { type: integer }
+        name: { type: string }
+        status: { type: string, enum: [DRAFT, PUBLISHED, RETIRED] }
+        steps: { type: array, items: { $ref: '#/components/schemas/WorkflowStep' } }
+    WorkflowRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        chainName: { type: string }
+        chainVersion: { type: integer }
+        subject: { type: string }
+        details: { type: string, nullable: true }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, WITHDRAWN] }
+        currentStep: { type: integer }
+        waitingFor: { type: string, nullable: true }
+        requester: { type: string }
+        mine: { type: boolean }
+        submittedAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+        steps: { type: array, items: { $ref: '#/components/schemas/WorkflowStep' } }
     ComplianceItem:
       type: object
       properties:
