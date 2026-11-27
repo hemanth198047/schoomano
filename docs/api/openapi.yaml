@@ -2926,6 +2926,79 @@ paths:
         '400': { description: A note is required, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: not_in_progress, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/compliance-items:
+    get:
+      tags: [Compliance]
+      summary: The campus compliance register with each item's standing computed in India time: OVERDUE, DUE_SOON (within 30 days), CURRENT, DONE or RETIRED (COMPLIANCE_READ)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Items, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ComplianceItem' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Compliance]
+      summary: Add an obligation to the register (COMPLIANCE_MANAGE). Items cannot be edited; retire and re-add instead
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, category, ownerName, firstDueOn]
+              properties:
+                title: { type: string, minLength: 3, maxLength: 160 }
+                category: { type: string, enum: [FIRE_SAFETY, HEALTH_SAFETY, PRIVACY, SAFEGUARDING, FINANCE, STATUTORY, OTHER] }
+                ownerName: { type: string, minLength: 2, maxLength: 80 }
+                repeatMonths: { type: integer, minimum: 1, maximum: 60, description: Omit for a one-off item }
+                firstDueOn: { type: string, format: date }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/ComplianceItem' } } } }
+        '400': { description: Invalid fields, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: duplicate_item, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/compliance-items/{id}/retire:
+    post:
+      tags: [Compliance]
+      summary: Retire an item (COMPLIANCE_MANAGE). It stays retired
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Retired, content: { application/json: { schema: { $ref: '#/components/schemas/ComplianceItem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_retired, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/compliance-items/{id}/evidence:
+    get:
+      tags: [Compliance]
+      summary: Evidence history, newest first (COMPLIANCE_READ)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Evidence, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ComplianceEvidence' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Compliance]
+      summary: Record evidence (COMPLIANCE_EVIDENCE). Permanent. Moves the due date to valid-until if given, else by the repeat interval; a one-off item with neither is done. The date never moves back
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [doneOn]
+              properties:
+                doneOn: { type: string, format: date }
+                reference: { type: string, minLength: 2, maxLength: 200 }
+                note: { type: string, maxLength: 1000 }
+                validUntil: { type: string, format: date }
+      responses:
+        '201': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/ComplianceItem' } } } }
+        '400': { description: invalid_evidence, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: item_retired, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -4185,3 +4258,27 @@ components:
         reportedAt: { type: string, format: date-time }
         resolution: { type: string, nullable: true }
         resolvedAt: { type: string, format: date-time, nullable: true }
+    ComplianceItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        category: { type: string, enum: [FIRE_SAFETY, HEALTH_SAFETY, PRIVACY, SAFEGUARDING, FINANCE, STATUTORY, OTHER] }
+        ownerName: { type: string }
+        repeatMonths: { type: integer, nullable: true }
+        nextDueOn: { type: string, format: date, nullable: true }
+        status: { type: string, enum: [ACTIVE, RETIRED] }
+        standing: { type: string, enum: [OVERDUE, DUE_SOON, CURRENT, DONE, RETIRED] }
+        lastDoneOn: { type: string, format: date, nullable: true }
+        lastReference: { type: string, nullable: true }
+        evidenceCount: { type: integer }
+    ComplianceEvidence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        doneOn: { type: string, format: date }
+        reference: { type: string, nullable: true }
+        note: { type: string, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+        recordedBy: { type: string }
+        recordedAt: { type: string, format: date-time }

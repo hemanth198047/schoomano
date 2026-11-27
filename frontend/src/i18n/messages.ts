@@ -20,6 +20,7 @@ export const en = {
   'nav.activities': 'Activities',
   'nav.trips': 'Trips',
   'nav.facilities': 'Facilities',
+  'nav.compliance': 'Compliance',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

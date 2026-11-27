@@ -878,3 +878,27 @@ export interface MaintenanceIssue {
   resolution: string | null;
   resolvedAt: string | null;
 }
+
+export interface ComplianceItem {
+  id: string;
+  title: string;
+  category: 'FIRE_SAFETY' | 'HEALTH_SAFETY' | 'PRIVACY' | 'SAFEGUARDING' | 'FINANCE' | 'STATUTORY' | 'OTHER';
+  ownerName: string;
+  repeatMonths: number | null;
+  nextDueOn: string | null;
+  status: 'ACTIVE' | 'RETIRED';
+  standing: 'OVERDUE' | 'DUE_SOON' | 'CURRENT' | 'DONE' | 'RETIRED';
+  lastDoneOn: string | null;
+  lastReference: string | null;
+  evidenceCount: number;
+}
+
+export interface ComplianceEvidence {
+  id: string;
+  doneOn: string;
+  reference: string | null;
+  note: string | null;
+  validUntil: string | null;
+  recordedBy: string;
+  recordedAt: string;
+}
