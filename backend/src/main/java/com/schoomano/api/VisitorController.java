@@ -74,6 +74,11 @@ public class VisitorController {
                     """, UUID.class, ctx.tenant().value(), campusId, req.visitorName().trim(), blank(req.organisation()), blank(req.phone()),
                     req.purpose().trim(), req.hostPersonId(), blank(req.badgeNo()), ctx.actor().personId());
                 audit.write(jdbc, ctx, "visitor.checked_in", "visitor_visit", id.toString(), "SUCCESS", null, Map.of());
+                if (req.hostPersonId() != null) {
+                    jdbc.queryForObject("select notice_tell_staff('VISITOR', ?, ?, ?, ?::uuid[], null)", Integer.class, campusId,
+                        "Visitor here to see you: " + req.visitorName().trim(),
+                        req.visitorName().trim() + " has arrived at the gate. Purpose: " + req.purpose().trim() + ".", "{" + req.hostPersonId() + "}");
+                }
                 return visits(jdbc, "v.id = ?", id).get(0);
             } catch (DataIntegrityViolationException e) {
                 if (String.valueOf(e.getMostSpecificCause().getMessage()).contains("visitor_badge_in_use")) {

@@ -49,6 +49,6 @@ public class ApprovalNotifier {
             return;
         }
         String literal = "{" + String.join(",", people.stream().map(UUID::toString).toList()) + "}";
-        jdbc.queryForObject("select notice_tell_staff(?, ?, ?, ?::uuid[], null)", Integer.class, campusId, title, body, literal);
+        jdbc.queryForObject("select notice_tell_staff('APPROVAL', ?, ?, ?, ?::uuid[], null)", Integer.class, campusId, title, body, literal);
     }
 }

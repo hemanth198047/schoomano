@@ -65,6 +65,9 @@ class VisitorApiIT extends ApiITSupport {
             .andExpect(status().isCreated()).andExpect(jsonPath("$.inside").value(true)).andExpect(jsonPath("$.host").value("dev-vs-d42 Staff"))
             .andReturn().getResponse().getContentAsString();
         String id = JsonPath.read(created, "$.id");
+        assertEquals(1, ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.kind = 'VISITOR' and d.channel = 'IN_APP'"
+            + " and n.title = 'Visitor here to see you: IT Visitor' and d.recipient_person_id = '" + host + "'"));
+        mvc.perform(as(get("/api/v1/notices/mine"), "dev-vs-d42")).andExpect(jsonPath("$[?(@.title=='Visitor here to see you: IT Visitor')].kind").value("VISITOR"));
 
         // The badge stays with whoever is inside; check-out frees it and happens once.
         mvc.perform(json(post(visits), "dev-vs-d41", body.replace("IT Visitor", "Another"))).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("badge_in_use"));
@@ -76,6 +79,7 @@ class VisitorApiIT extends ApiITSupport {
         mvc.perform(as(get(visits + "?view=today"), "dev-vs-d43")).andExpect(jsonPath("$[?(@.id=='" + id + "')].inside").value(false));
         mvc.perform(as(get(visits + "?view=week"), "dev-vs-d43")).andExpect(status().isBadRequest());
         mvc.perform(json(post(visits), "dev-vs-d41", body.replace("IT Visitor", "Another"))).andExpect(status().isCreated());
+        assertEquals(0, ownerCount("select count(*) from notice where kind = 'VISITOR' and title = 'Visitor here to see you: Another'"));
 
         // Other schools see nothing.
         mvc.perform(as(get(visits), "dev-other")).andExpect(status().isNotFound());
