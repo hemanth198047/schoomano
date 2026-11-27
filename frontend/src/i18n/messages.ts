@@ -14,6 +14,7 @@ export const en = {
   'nav.studentSupport': 'Student support',
   'nav.safeguarding': 'Safeguarding',
   'nav.health': 'Health',
+  'nav.purchasing': 'Purchasing',
   'nav.fees': 'Fees',
   'nav.attendance': 'Attendance',
   'nav.assessment': 'Marks and reports',

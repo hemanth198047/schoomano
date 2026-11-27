@@ -674,3 +674,36 @@ export interface HealthFlag {
   studentName: string;
   flag: string | null;
 }
+
+export interface Budget {
+  id: string;
+  category: string;
+  amountPaise: number;
+  committedPaise: number;
+  paidPaise: number;
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  contact: string | null;
+}
+
+export type PurchaseStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'PAID';
+
+export interface PurchaseRequest {
+  id: string;
+  budgetId: string;
+  category: string;
+  vendor: string | null;
+  title: string;
+  description: string | null;
+  amountPaise: number;
+  status: PurchaseStatus;
+  requestedBy: string;
+  requestedAt: string;
+  needsPrincipal: boolean;
+  paidPaise: number | null;
+  paymentReference: string | null;
+  history: { from: string | null; to: string; note: string | null; by: string; at: string }[];
+}

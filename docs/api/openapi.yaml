@@ -2111,6 +2111,138 @@ paths:
       responses:
         '200': { description: Flags, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HealthFlag' } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/campuses/{campusId}/vendors:
+    get:
+      tags: [Procurement]
+      summary: Active vendors of a campus (PROCUREMENT_READ or PROCUREMENT_REQUEST)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Vendors, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Vendor' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Procurement]
+      summary: Add a vendor (BUDGET_MANAGE). Names are unique per campus
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 120 }
+                contact: { type: string, maxLength: 200 }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/Vendor' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Duplicate name, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/academic-years/{yearId}/budgets:
+    get:
+      tags: [Procurement]
+      summary: Budgets with approved and paid totals (PROCUREMENT_READ, or PROCUREMENT_REQUEST to choose one)
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Budgets, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Budget' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [Procurement]
+      summary: Set a budget for a category (BUDGET_MANAGE). It cannot go below what is already approved
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, amountPaise]
+              properties:
+                category: { type: string, minLength: 2, maxLength: 60 }
+                amountPaise: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Budget' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Below the approved total, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/academic-years/{yearId}/purchase-requests:
+    get:
+      tags: [Procurement]
+      summary: Purchase requests, pending first. Approvers and finance see all; other requesters see their own
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [SUBMITTED, APPROVED, REJECTED, CANCELLED, PAID] } }
+      responses:
+        '200': { description: Requests, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PurchaseRequest' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Procurement]
+      summary: Raise a purchase request against a budget (PROCUREMENT_REQUEST). Amounts above 5,000,000 paise (50,000 rupees) need the principal to approve
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [budgetId, title, amountPaise]
+              properties:
+                budgetId: { type: string, format: uuid }
+                vendorId: { type: string, format: uuid }
+                title: { type: string, minLength: 3, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                amountPaise: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '201': { description: Raised, content: { application/json: { schema: { $ref: '#/components/schemas/PurchaseRequest' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/purchase-requests/{id}/decision:
+    post:
+      tags: [Procurement]
+      summary: Approve or reject a pending request (PROCUREMENT_APPROVE, never the requester; the principal above 50,000 rupees), or let the requester cancel it. Approval stops at the budget
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [APPROVE, REJECT, CANCEL] }
+                note: { type: string, maxLength: 2000, description: At least 5 characters to reject }
+      responses:
+        '200': { description: Decided, content: { application/json: { schema: { $ref: '#/components/schemas/PurchaseRequest' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Not pending, or over budget, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/purchase-requests/{id}/payment:
+    post:
+      tags: [Procurement]
+      summary: Record the vendor payment for an approved request (PAYMENT_RECORD). Once only, never above the approved amount
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountPaise, paidOn, reference]
+              properties:
+                amountPaise: { type: integer, format: int64, minimum: 1 }
+                paidOn: { type: string, format: date }
+                reference: { type: string, minLength: 2, maxLength: 120 }
+      responses:
+        '200': { description: Paid, content: { application/json: { schema: { $ref: '#/components/schemas/PurchaseRequest' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: Not approved or already paid, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -2411,6 +2543,46 @@ components:
               outcome: { type: string, enum: [RETURNED_TO_CLASS, SENT_HOME, REFERRED, OTHER] }
               guardianInformed: { type: boolean }
               recordedBy: { type: string }
+    Vendor:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        contact: { type: string, nullable: true }
+    Budget:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        category: { type: string }
+        amountPaise: { type: integer, format: int64 }
+        committedPaise: { type: integer, format: int64, description: Approved and paid requests }
+        paidPaise: { type: integer, format: int64 }
+    PurchaseRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        budgetId: { type: string, format: uuid }
+        category: { type: string }
+        vendor: { type: string, nullable: true }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        amountPaise: { type: integer, format: int64 }
+        status: { type: string, enum: [SUBMITTED, APPROVED, REJECTED, CANCELLED, PAID] }
+        requestedBy: { type: string }
+        requestedAt: { type: string, format: date-time }
+        needsPrincipal: { type: boolean }
+        paidPaise: { type: integer, format: int64, nullable: true }
+        paymentReference: { type: string, nullable: true }
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              from: { type: string, nullable: true }
+              to: { type: string }
+              note: { type: string, nullable: true }
+              by: { type: string }
+              at: { type: string, format: date-time }
     SupportCaseSummary:
       type: object
       properties:
