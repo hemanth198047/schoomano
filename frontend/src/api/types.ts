@@ -967,3 +967,17 @@ export interface WorkflowRequest {
   closedAt: string | null;
   steps: WorkflowStep[];
 }
+
+export interface Visit {
+  id: string;
+  visitorName: string;
+  organisation: string | null;
+  phone: string | null;
+  purpose: string;
+  host: string | null;
+  badgeNo: string | null;
+  checkedInAt: string;
+  checkedInBy: string;
+  checkedOutAt: string | null;
+  inside: boolean;
+}

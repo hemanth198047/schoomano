@@ -66,6 +66,8 @@ public enum Permission {
     FACILITY_READ(false),
     FACILITY_REQUEST(true),
     FACILITY_MANAGE(true),
+    VISITOR_READ(false),
+    VISITOR_RECORD(true),
     COMPLIANCE_READ(false),
     COMPLIANCE_MANAGE(true),
     COMPLIANCE_EVIDENCE(true),
