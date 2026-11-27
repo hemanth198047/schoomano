@@ -3,11 +3,13 @@ import { ScrollView, View } from 'react-native';
 import { ApiError, type Client } from '../core/api';
 import { formatPaise } from '../core/money';
 import { homeworkLine } from '../core/homework';
+import { boardingLines, routeLine } from '../core/transport';
 import { reportLines } from '../core/report';
 import type {
   ChildAttendance,
   InboxItem,
   InvoiceSummary,
+  ChildTransport,
   HomeworkItem,
   Me,
   PaymentOrder,
@@ -56,7 +58,10 @@ function ChildView({ client, child }: { client: Client; child: Child }) {
       <Heading>{child.displayName}</Heading>
       {child.campusName && <Body muted>{child.campusName}</Body>}
       {child.capabilities.includes('VIEW_ATTENDANCE') && (
-        <Attendance client={client} studentId={child.studentId} />
+        <>
+          <Attendance client={client} studentId={child.studentId} />
+          <Transport client={client} studentId={child.studentId} />
+        </>
       )}
       {child.capabilities.includes('VIEW_ACADEMIC') && (
         <>
@@ -95,6 +100,48 @@ function Attendance({ client, studentId }: { client: Client; studentId: string }
             <Body key={d.date} muted>{`${d.date}: ${d.status === 'ABSENT' ? 'absent' : 'on leave'}`}</Body>
           ))}
           {data.days.length === 0 && <Body muted>No attendance recorded yet.</Body>}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Transport({ client, studentId }: { client: Client; studentId: string }) {
+  const [info, setInfo] = useState<ChildTransport | null | 'none'>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    client
+      .request<ChildTransport>(`/api/v1/students/${studentId}/transport`)
+      .then((d) => live && setInfo(d))
+      .catch((e: unknown) => {
+        // A child without a school bus is not an error.
+        if (!live) return;
+        if (e instanceof ApiError && e.status === 404) setInfo('none');
+        else setError(oops(e));
+      });
+    return () => {
+      live = false;
+    };
+  }, [client, studentId]);
+  if (info === 'none') return null;
+  return (
+    <Card>
+      <Heading>School bus</Heading>
+      {error && <Notice kind="error">{error}</Notice>}
+      {!info && !error && <Body muted>Loading…</Body>}
+      {info && (
+        <>
+          <Body strong>{routeLine(info)}</Body>
+          <Body muted>
+            Driver {info.driverName}
+            {info.driverPhone ? `, ${info.driverPhone}` : ''}
+            {info.vehicle ? `, bus ${info.vehicle}` : ''}
+          </Body>
+          {boardingLines(info.today).length === 0 && <Body muted>No bus activity recorded yet today.</Body>}
+          {boardingLines(info.today).map((l) => (
+            <Body key={l}>{l}</Body>
+          ))}
         </>
       )}
     </Card>

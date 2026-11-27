@@ -35,6 +35,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B16** (done, verified in CI) Health | M12 | B4 | Nurse-only health record and infirmary log in the restricted health partition; teachers and administrators see only a one-line emergency flag; reads and saves audited |
 | **B17** (done, verified in CI) Finance and procurement | M15 | B4 | Budgets per campus, year and category; purchase requests approved by someone else within budget (principal above 50,000 rupees); vendor payments recorded once; history permanent |
 | **B18** (done, verified in CI) HR and workforce | M16 | B4 | Staff profiles, yearly leave allowances, leave requests approved by someone else within balance; decisions final |
+| **B19** (done, CI pending) Transport | M17 | B4 | Vehicles, routes with stops, student assignments within vehicle capacity, boarding records, guardian view of own child |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 

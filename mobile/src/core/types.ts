@@ -112,3 +112,22 @@ export interface HomeworkItem {
   assignedOn: string;
   dueOn: string;
 }
+
+export interface BoardingEvent {
+  studentId: string;
+  trip: 'MORNING' | 'AFTERNOON';
+  event: 'BOARDED' | 'ALIGHTED';
+  tripDate: string;
+  recordedAt: string;
+}
+
+export interface ChildTransport {
+  studentId: string;
+  route: string;
+  stop: string;
+  pickupTime: string;
+  vehicle: string | null;
+  driverName: string;
+  driverPhone: string | null;
+  today: BoardingEvent[];
+}

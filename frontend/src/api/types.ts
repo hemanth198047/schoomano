@@ -751,3 +751,45 @@ export interface LeaveRequest {
   decisionNote: string | null;
   requestedAt: string;
 }
+
+export interface TransportStop {
+  id: string;
+  sequence: number;
+  name: string;
+  pickupTime: string;
+}
+
+export interface TransportRoute {
+  id: string;
+  name: string;
+  vehicle: string | null;
+  capacity: number | null;
+  driverName: string;
+  driverPhone: string | null;
+  assigned: number;
+  stops: TransportStop[];
+}
+
+export interface Vehicle {
+  id: string;
+  registration: string;
+  capacity: number;
+}
+
+export interface BoardingRecord {
+  studentId: string;
+  trip: 'MORNING' | 'AFTERNOON';
+  event: 'BOARDED' | 'ALIGHTED';
+  tripDate: string;
+  recordedAt: string;
+  replayed: boolean;
+}
+
+export interface RosterEntry {
+  assignmentId: string;
+  studentId: string;
+  name: string;
+  stop: string;
+  pickupTime: string;
+  today: BoardingRecord[];
+}

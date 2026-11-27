@@ -2370,6 +2370,163 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: Not pending, or not enough balance, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/vehicles:
+    get:
+      tags: [Transport]
+      summary: Vehicles of a campus (TRANSPORT_READ)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Vehicles, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Vehicle' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Transport]
+      summary: Add a vehicle (TRANSPORT_MANAGE). Registration is unique within the tenant
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [registration, capacity]
+              properties:
+                registration: { type: string, minLength: 4, maxLength: 20 }
+                capacity: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/Vehicle' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { description: duplicate_vehicle, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/routes:
+    get:
+      tags: [Transport]
+      summary: Routes with stops and seats used (TRANSPORT_READ)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Routes, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TransportRoute' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Transport]
+      summary: Add a route (TRANSPORT_MANAGE), optionally on a vehicle of this campus
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, driverName]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80 }
+                vehicleId: { type: string, format: uuid }
+                driverName: { type: string, minLength: 2, maxLength: 80 }
+                driverPhone: { type: string, pattern: '^\\+?[0-9]{8,15}$' }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/TransportRoute' } } } }
+        '400': { description: unknown_vehicle or invalid fields, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { description: duplicate_route, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/routes/{routeId}/stops:
+    post:
+      tags: [Transport]
+      summary: Append a stop to a route (TRANSPORT_MANAGE). Sequence is assigned in order
+      parameters:
+        - { name: routeId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, pickupTime]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 80 }
+                pickupTime: { type: string, format: time }
+      responses:
+        '201': { description: The route with the new stop, content: { application/json: { schema: { $ref: '#/components/schemas/TransportRoute' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/academic-years/{yearId}/transport-assignments:
+    post:
+      tags: [Transport]
+      summary: Put an enrolled student on a route and stop (TRANSPORT_MANAGE). One active assignment per student per year; the vehicle capacity is enforced in the database
+      parameters:
+        - { name: yearId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, routeId, stopId]
+              properties:
+                studentId: { type: string, format: uuid }
+                routeId: { type: string, format: uuid }
+                stopId: { type: string, format: uuid }
+      responses:
+        '201': { description: Assigned, content: { application/json: { schema: { type: object, properties: { id: { type: string, format: uuid } } } } } }
+        '400': { description: unknown_route or invalid_assignment, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: route_full or already_assigned, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/transport-assignments/{id}/end:
+    post:
+      tags: [Transport]
+      summary: End an assignment (TRANSPORT_MANAGE). Assignments cannot be edited; end and re-assign instead
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Ended, content: { application/json: { schema: { type: object, properties: { status: { type: string } } } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_ended, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/routes/{routeId}/roster:
+    get:
+      tags: [Transport]
+      summary: Children on the route in stop order with that day's boarding events (TRANSPORT_READ). Defaults to today in India
+      parameters:
+        - { name: routeId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: date, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200': { description: Roster, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TransportRosterEntry' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/routes/{routeId}/boarding:
+    post:
+      tags: [Transport]
+      summary: Record that a child got on or off (BOARDING_RECORD). Repeating the same event returns the first with replayed true; future trips and children not on the route are refused. Emits transport.boarded or transport.alighted to the outbox
+      parameters:
+        - { name: routeId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, trip, event]
+              properties:
+                studentId: { type: string, format: uuid }
+                trip: { type: string, enum: [MORNING, AFTERNOON] }
+                event: { type: string, enum: [BOARDED, ALIGHTED] }
+                tripDate: { type: string, format: date, description: Defaults to today in India }
+      responses:
+        '200': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/TransportBoarding' } } } }
+        '400': { description: not_on_route, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/students/{studentId}/transport:
+    get:
+      tags: [Transport]
+      summary: A child's route, stop, driver and today's boarding events (TRANSPORT_READ). Guardians need the view-attendance capability; otherwise 404
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Transport, content: { application/json: { schema: { $ref: '#/components/schemas/ChildTransport' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/invoices/{invoiceId}:
     get:
       tags: [Fees]
@@ -3471,3 +3628,56 @@ components:
         reason: { type: string, nullable: true }
         correlationId: { type: string, nullable: true }
         details: { type: object }
+    Vehicle:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        registration: { type: string }
+        capacity: { type: integer }
+    TransportStop:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        sequence: { type: integer }
+        name: { type: string }
+        pickupTime: { type: string, format: time }
+    TransportRoute:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        vehicle: { type: string, nullable: true }
+        capacity: { type: integer, nullable: true }
+        driverName: { type: string }
+        driverPhone: { type: string, nullable: true }
+        assigned: { type: integer }
+        stops: { type: array, items: { $ref: '#/components/schemas/TransportStop' } }
+    TransportBoarding:
+      type: object
+      properties:
+        studentId: { type: string, format: uuid }
+        trip: { type: string, enum: [MORNING, AFTERNOON] }
+        event: { type: string, enum: [BOARDED, ALIGHTED] }
+        tripDate: { type: string, format: date }
+        recordedAt: { type: string, format: date-time }
+        replayed: { type: boolean }
+    TransportRosterEntry:
+      type: object
+      properties:
+        assignmentId: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        name: { type: string }
+        stop: { type: string }
+        pickupTime: { type: string, format: time }
+        today: { type: array, items: { $ref: '#/components/schemas/TransportBoarding' } }
+    ChildTransport:
+      type: object
+      properties:
+        studentId: { type: string, format: uuid }
+        route: { type: string }
+        stop: { type: string }
+        pickupTime: { type: string, format: time }
+        vehicle: { type: string, nullable: true }
+        driverName: { type: string }
+        driverPhone: { type: string, nullable: true }
+        today: { type: array, items: { $ref: '#/components/schemas/TransportBoarding' } }

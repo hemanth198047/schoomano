@@ -13,7 +13,7 @@ public enum GuardianCapability {
     /** Which relationship capability, if any, lets a guardian exercise a permission for their child. */
     public static Optional<GuardianCapability> forPermission(Permission permission) {
         return Optional.ofNullable(switch (permission) {
-            case ATTENDANCE_READ -> VIEW_ATTENDANCE;
+            case ATTENDANCE_READ, TRANSPORT_READ -> VIEW_ATTENDANCE;
             case STUDENT_READ_ACADEMIC -> VIEW_ACADEMIC;
             case FEE_READ, FEE_PAY -> PAY_FEES;
             case CONSENT_GIVE -> GIVE_CONSENT;
