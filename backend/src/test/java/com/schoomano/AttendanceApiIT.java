@@ -48,6 +48,7 @@ class AttendanceApiIT extends ApiITSupport {
 
         // A phone marks Anaya absent; a retry with the same key changes nothing.
         long absentEventsBefore = ownerCount("select count(*) from outbox_event where event_type = 'attendance.absent'");
+        long historyBefore = ownerCount("select count(*) from attendance_mark_history");
         mvc.perform(body(post(url + "/batches"), "dev-ravi", null, batch(DAY, ANAYA, "ABSENT", 0)))
             .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("idempotency_key_required"));
         mvc.perform(body(post(url + "/batches"), "dev-ravi", "key-AAAA0001", batch(DAY, ANAYA, "ABSENT", 0)))
@@ -61,7 +62,7 @@ class AttendanceApiIT extends ApiITSupport {
             .andExpect(jsonPath("$.results[0].outcome").value("CREATED"));
         mvc.perform(body(post(url + "/batches"), "dev-ravi", "key-AAAA0001", batch(DAY, ANAYA, "PRESENT", 0)))
             .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("idempotency_key_reused"));
-        assertEquals(1L, ownerCount("select count(*) from attendance_mark_history"));
+        assertEquals(historyBefore + 1, ownerCount("select count(*) from attendance_mark_history"));
         assertEquals(absentEventsBefore + 1, ownerCount("select count(*) from outbox_event where event_type = 'attendance.absent'"));
 
         // The office corrects while the phone is offline; the phone's stale value becomes a visible conflict.
@@ -100,7 +101,7 @@ class AttendanceApiIT extends ApiITSupport {
             .andExpect(jsonPath("$.students[?(@.studentId=='" + ANAYA + "')].status").value("PRESENT"))
             .andExpect(jsonPath("$.students[?(@.studentId=='" + ANAYA + "')].version").value(3));
         // Every step is in the history.
-        assertEquals(3L, ownerCount("select count(*) from attendance_mark_history"));
+        assertEquals(historyBefore + 3, ownerCount("select count(*) from attendance_mark_history"));
     }
 
     @Test

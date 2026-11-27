@@ -54,7 +54,7 @@ class TransportApiIT extends ApiITSupport {
         // Setup is for the campus administrator only.
         mvc.perform(json(post(vehicles), "dev-att-d02", "{\"registration\":\"KA01IT0001\",\"capacity\":1}")).andExpect(status().isNotFound());
         mvc.perform(json(post(vehicles), "dev-meera", "{\"registration\":\"KA01IT0001\",\"capacity\":1}")).andExpect(status().isNotFound());
-        mvc.perform(json(post(vehicles), "dev-tr-d01", "{\"registration\":\"KA01\",\"capacity\":1}")).andExpect(status().isBadRequest());
+        mvc.perform(json(post(vehicles), "dev-tr-d01", "{\"registration\":\"KA1\",\"capacity\":1}")).andExpect(status().isBadRequest());
         String vehicle = JsonPath.read(create(vehicles, "dev-tr-d01", "{\"registration\":\"ka01it0001\",\"capacity\":1}"), "$.id");
         mvc.perform(json(post(vehicles), "dev-tr-d01", "{\"registration\":\"KA01IT0001\",\"capacity\":5}")).andExpect(status().isConflict());
         mvc.perform(json(post(routes), "dev-tr-d01", "{\"name\":\"IT bad\",\"vehicleId\":\"" + ANAYA + "\",\"driverName\":\"Ramesh\"}")).andExpect(status().isBadRequest());
