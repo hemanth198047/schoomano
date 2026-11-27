@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ApiError, apiRequest } from '../api/client';
-import type { ApiKey, ApiKeyIssued, Campus, Me } from '../api/types';
+import type { ApiKey, ApiKeyIssued, Campus, Me, Webhook, WebhookDelivery, WebhookIssued } from '../api/types';
 import { useApiSession } from '../app/session';
 import { useApiResource } from '../app/useApiResource';
 import { Button } from '../components/Button';
@@ -12,6 +12,8 @@ import { formatDateTime } from '../lib/format';
 
 export const canManageKeys = (me: Me) =>
   me.roles.some((r) => r.roleKey === 'campus_admin' || r.roleKey === 'group_admin');
+
+export const canManageWebhooks = (me: Me) => me.roles.some((r) => r.roleKey === 'group_admin');
 
 const message = (e: unknown) => (e instanceof ApiError ? e.detail : 'Something went wrong. Try again.');
 
@@ -38,6 +40,7 @@ export function IntegrationsPage({
         </EmptyState>
       ) : (
         <>
+          {canManageWebhooks(me) && <Webhooks />}
           {selectedCampusId === null && campuses.length > 1 && (
             <div className="form form--inline">
               <Field label="Campus">
@@ -166,5 +169,178 @@ function Keys({ campusId }: { campusId: string }) {
         {error && <p role="alert">{error}</p>}
       </section>
     </>
+  );
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  'academic.year_rolled_over': 'A school year was rolled over',
+  'config.published': 'Settings were published',
+  'import.committed': 'An import was applied',
+  'timetable.published': 'A timetable was published',
+  'timetable.substitution_created': 'A substitution was set',
+  'timetable.substitution_cancelled': 'A substitution was cancelled',
+};
+
+function Webhooks() {
+  const session = useApiSession();
+  const [hooks, reload] = useApiResource<Webhook[]>('/api/v1/webhooks');
+  const [types] = useApiResource<string[]>('/api/v1/webhooks/event-types');
+  const [name, setName] = useState('');
+  const [url, setUrl] = useState('');
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [secret, setSecret] = useState<WebhookIssued | null>(null);
+  const [looking, setLooking] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  async function create() {
+    setError(null);
+    try {
+      const issued = await apiRequest<WebhookIssued>(session, '/api/v1/webhooks', {
+        method: 'POST',
+        body: { name: name.trim(), url: url.trim(), eventTypes: chosen },
+      });
+      setSecret(issued);
+      setName('');
+      setUrl('');
+      setChosen([]);
+      reload();
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+
+  async function act(h: Webhook, what: 'disable' | 'ping') {
+    setError(null);
+    setNote(null);
+    try {
+      await apiRequest(session, `/api/v1/webhooks/${h.id}/${what}`, { method: 'POST', body: {} });
+      if (what === 'ping') setNote(`A test event is on its way to ${h.name}.`);
+      reload();
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+
+  return (
+    <>
+      <section aria-labelledby="hooks-h">
+        <h2 id="hooks-h">Webhooks</h2>
+        <p className="muted">
+          Webhooks tell another system when something changes at the school. Each message is signed with the
+          secret shown when you create the endpoint. Events about individual students are not offered.
+        </p>
+        {secret && (
+          <div role="status">
+            <p>
+              Copy the signing secret for <strong>{secret.endpoint.name}</strong> now. It is not shown again.
+            </p>
+            <p>
+              <code>{secret.secret}</code>
+            </p>
+            <Button variant="quiet" onClick={() => setSecret(null)}>
+              I have copied the secret
+            </Button>
+          </div>
+        )}
+        {hooks.status === 'loading' && <LoadingState label="Loading webhooks" />}
+        {hooks.status === 'error' && <ErrorState error={hooks.error} onRetry={reload} />}
+        {hooks.status === 'ready' &&
+          (hooks.data.length === 0 ? (
+            <EmptyState title="No webhooks yet" />
+          ) : (
+            <ul className="plain-list">
+              {hooks.data.map((h) => (
+                <li key={h.id}>
+                  <p>
+                    <strong>{h.name}</strong> <span className="muted">{h.url}</span>{' '}
+                    <StatusBadge tone={h.active ? 'success' : 'warning'}>
+                      {h.active ? 'ACTIVE' : 'OFF'}
+                    </StatusBadge>
+                  </p>
+                  <p className="muted">
+                    {h.eventTypes.map((t) => EVENT_LABELS[t] ?? t).join(', ')}
+                    {!h.active && h.disabledReason ? `. ${h.disabledReason}` : ''}
+                  </p>
+                  <div className="form form--inline">
+                    {h.active && (
+                      <>
+                        <Button
+                          variant="quiet"
+                          onClick={() => void act(h, 'ping')}
+                        >{`Send test to ${h.name}`}</Button>
+                        <Button
+                          variant="quiet"
+                          onClick={() => void act(h, 'disable')}
+                        >{`Switch off ${h.name}`}</Button>
+                      </>
+                    )}
+                    <Button variant="quiet" onClick={() => setLooking(looking === h.id ? null : h.id)}>
+                      {looking === h.id ? `Hide deliveries of ${h.name}` : `Deliveries of ${h.name}`}
+                    </Button>
+                  </div>
+                  {looking === h.id && <Deliveries id={h.id} />}
+                </li>
+              ))}
+            </ul>
+          ))}
+        {note && <p role="status">{note}</p>}
+        <h3>Add a webhook</h3>
+        <div className="form">
+          <Field label="Webhook name" hint="For example, Library system">
+            {(p) => <input {...p} value={name} onChange={(e) => setName(e.target.value)} />}
+          </Field>
+          <Field label="Address" hint="Must start with https://">
+            {(p) => <input {...p} type="url" value={url} onChange={(e) => setUrl(e.target.value)} />}
+          </Field>
+          <fieldset>
+            <legend>Events to send</legend>
+            {types.status === 'ready' &&
+              types.data.map((t) => (
+                <label key={t} className="check">
+                  <input
+                    type="checkbox"
+                    checked={chosen.includes(t)}
+                    onChange={(e) =>
+                      setChosen(e.target.checked ? [...chosen, t] : chosen.filter((x) => x !== t))
+                    }
+                  />{' '}
+                  {EVENT_LABELS[t] ?? t}
+                </label>
+              ))}
+          </fieldset>
+          <Button
+            onClick={() => void create()}
+            disabled={name.trim().length < 3 || url.trim() === '' || chosen.length === 0}
+          >
+            Add webhook
+          </Button>
+        </div>
+        {error && <p role="alert">{error}</p>}
+      </section>
+    </>
+  );
+}
+
+function Deliveries({ id }: { id: string }) {
+  const [list] = useApiResource<WebhookDelivery[]>(`/api/v1/webhooks/${id}/deliveries`);
+  if (list.status === 'loading') return <LoadingState label="Loading deliveries" />;
+  if (list.status === 'error') return <p role="alert">Could not load deliveries.</p>;
+  if (list.data.length === 0) return <p className="muted">Nothing has been sent yet.</p>;
+  return (
+    <ul className="plain-list">
+      {list.data.map((d) => (
+        <li key={d.id}>
+          {d.eventType}{' '}
+          <StatusBadge tone={d.status === 'SENT' ? 'success' : d.status === 'FAILED' ? 'danger' : 'info'}>
+            {d.status}
+          </StatusBadge>{' '}
+          <span className="muted">
+            {formatDateTime(d.createdAt)}, {d.attempts} {d.attempts === 1 ? 'try' : 'tries'}
+            {d.lastError ? `, ${d.lastError}` : ''}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -70,6 +70,7 @@ public enum Permission {
     VISITOR_RECORD(true),
     VISITOR_EXPECT(true),
     APIKEY_MANAGE(true),
+    WEBHOOK_MANAGE(true),
     COMPLIANCE_READ(false),
     COMPLIANCE_MANAGE(true),
     COMPLIANCE_EVIDENCE(true),

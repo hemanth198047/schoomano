@@ -50,6 +50,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B31** (done, verified in CI) Visitor arrival notice | M21 | B28, B30 | The staff member being visited gets an in-app notice when their visitor is checked in |
 | **B32** (done, verified in CI) Pre-registered visitors | M21 | B28, B31 | Staff announce guests ahead; the gate checks them in against the announcement |
 | **B33** (done, verified in CI) API keys | M27 | B1 | Read-only, expiring, revocable keys for outside systems, shown once |
+| **B34** (done, CI pending) Webhooks | M27 | B33 | Signed, retried delivery of school events to registered https endpoints; no student events until D7 |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 

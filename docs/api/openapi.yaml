@@ -3315,6 +3315,66 @@ paths:
         '200': { description: Withdrawn, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowRequest' } } } }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: request_closed, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/webhooks/event-types:
+    get:
+      tags: [Integrations]
+      summary: Event types an endpoint may ask for. None identifies a student (WEBHOOK_MANAGE, group administrator)
+      responses:
+        '200': { description: Event types, content: { application/json: { schema: { type: array, items: { type: string } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/webhooks:
+    get:
+      tags: [Integrations]
+      summary: Webhook endpoints of the school, never the signing secret (WEBHOOK_MANAGE)
+      responses:
+        '200': { description: Endpoints, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Webhook' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Integrations]
+      summary: Register an https endpoint. The signing secret is in this response only (WEBHOOK_MANAGE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, eventTypes]
+              properties:
+                name: { type: string, minLength: 3, maxLength: 80 }
+                url: { type: string, maxLength: 500, description: 'https only, port 443 or 8443, a public host name (no IP address, no internal name)' }
+                eventTypes: { type: array, minItems: 1, maxItems: 20, items: { type: string } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/WebhookIssued' } } } }
+        '400': { description: bad_url, unknown_event_type or invalid fields, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/webhooks/{id}/disable:
+    post:
+      tags: [Integrations]
+      summary: Switch an endpoint off (WEBHOOK_MANAGE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Switched off, content: { application/json: { schema: { $ref: '#/components/schemas/Webhook' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_off, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/webhooks/{id}/ping:
+    post:
+      tags: [Integrations]
+      summary: Send a test event (webhook.ping) to one active endpoint (WEBHOOK_MANAGE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '202': { description: Queued, content: { application/json: { schema: { type: object, properties: { deliveryId: { type: string, format: uuid } } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/webhooks/{id}/deliveries:
+    get:
+      tags: [Integrations]
+      summary: The last 50 deliveries to an endpoint (WEBHOOK_MANAGE)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Deliveries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/campuses/{campusId}/api-keys:
     get:
       tags: [Integrations]
@@ -3522,6 +3582,34 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    Webhook:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        url: { type: string }
+        eventTypes: { type: array, items: { type: string } }
+        active: { type: boolean }
+        failures: { type: integer, description: Deliveries in a row that ended failed. Ten switch the endpoint off }
+        createdAt: { type: string, format: date-time }
+        disabledAt: { type: [string, 'null'], format: date-time }
+        disabledReason: { type: [string, 'null'] }
+    WebhookIssued:
+      type: object
+      properties:
+        endpoint: { $ref: '#/components/schemas/Webhook' }
+        secret: { type: string, description: 'Signs every post. Receiver computes HMAC-SHA256 over "timestamp.body" and compares with v1 in the X-Schoomano-Signature header (t=...,v1=...). Shown once.' }
+    WebhookDelivery:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        eventType: { type: string }
+        status: { type: string, enum: [PENDING, SENT, FAILED] }
+        attempts: { type: integer }
+        lastStatus: { type: [integer, 'null'] }
+        lastError: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        sentAt: { type: [string, 'null'], format: date-time }
     ApiKey:
       type: object
       properties:

@@ -1014,3 +1014,31 @@ export interface ApiKeyIssued {
   key: ApiKey;
   secret: string;
 }
+
+export interface Webhook {
+  id: string;
+  name: string;
+  url: string;
+  eventTypes: string[];
+  active: boolean;
+  failures: number;
+  createdAt: string;
+  disabledAt: string | null;
+  disabledReason: string | null;
+}
+
+export interface WebhookIssued {
+  endpoint: Webhook;
+  secret: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  eventType: string;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  attempts: number;
+  lastStatus: number | null;
+  lastError: string | null;
+  createdAt: string;
+  sentAt: string | null;
+}

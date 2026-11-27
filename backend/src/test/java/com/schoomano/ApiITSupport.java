@@ -17,7 +17,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Shared base for API tests: one PostgreSQL 16 container per test run (RLS on, unprivileged app role),
  * migrated with Flyway and loaded with the synthetic seeds. Requires Docker. Run from backend/: mvn verify
  */
-@SpringBootTest(properties = {"schoomano.auth.dev-mode=true", "schoomano.notices.dispatcher=false"})
+@SpringBootTest(properties = {"schoomano.auth.dev-mode=true", "schoomano.notices.dispatcher=false", "schoomano.webhooks.dispatcher=false"})
 @AutoConfigureMockMvc
 abstract class ApiITSupport {
 
