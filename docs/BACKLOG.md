@@ -41,7 +41,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B22** (done, verified in CI) Facilities | M21 | B4 | Room bookings without clashes and maintenance requests; visitors still to do |
 | **B23** (done, verified in CI) Compliance register | M24 | B4 | Obligations with owners and due dates, permanent evidence that moves the due date; no legal content |
 | **B24** (done, verified in CI) Analytics | M25 | B4 | Read-only campus summary of enrolment, attendance and fees; counts only |
-| **B25** (done, CI pending) Workflow | M26 | B4 | Versioned approval chains and step-by-step requests with a permanent decision record |
+| **B25** (done, verified in CI) Workflow | M26 | B4 | Versioned approval chains and step-by-step requests with a permanent decision record |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 
