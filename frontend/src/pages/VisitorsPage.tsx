@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ApiError, apiRequest } from '../api/client';
-import type { Campus, Me, StaffMember, Visit } from '../api/types';
+import type { Campus, Me, Visit, VisitHost } from '../api/types';
 import { useApiSession } from '../app/session';
 import { useApiResource } from '../app/useApiResource';
 import { Button } from '../components/Button';
@@ -11,7 +11,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime } from '../lib/format';
 
 const has = (me: Me, ...keys: string[]) => me.roles.some((r) => keys.includes(r.roleKey));
-export const canRecordVisitors = (me: Me) => has(me, 'campus_admin', 'group_admin');
+export const canRecordVisitors = (me: Me) => has(me, 'campus_admin', 'group_admin', 'front_desk');
 export const canSeeVisitors = (me: Me) => canRecordVisitors(me) || has(me, 'principal');
 
 const message = (e: unknown) => (e instanceof ApiError ? e.detail : 'Something went wrong. Try again.');
@@ -132,7 +132,7 @@ function VisitRow({ v, canRecord, onChanged }: { v: Visit; canRecord: boolean; o
 
 function CheckIn({ campusId, onSaved }: { campusId: string; onSaved: () => void }) {
   const session = useApiSession();
-  const [staff] = useApiResource<StaffMember[]>(`/api/v1/campuses/${campusId}/staff`);
+  const [staff] = useApiResource<VisitHost[]>(`/api/v1/campuses/${campusId}/visit-hosts`);
   const [name, setName] = useState('');
   const [organisation, setOrganisation] = useState('');
   const [phone, setPhone] = useState('');

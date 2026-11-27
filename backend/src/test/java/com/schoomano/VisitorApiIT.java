@@ -82,4 +82,27 @@ class VisitorApiIT extends ApiITSupport {
         mvc.perform(json(post("/api/v1/visits/" + id + "/checkout"), "dev-other", "{}")).andExpect(status().isNotFound());
         assertEquals(1, ownerCount("select count(*) from audit_event where action = 'visitor.checked_out' and resource_id = '" + id + "'"));
     }
+
+    @Test
+    void frontDeskWorksTheGateWithoutSeeingStaffRecordsOrStudents() throws Exception {
+        staff("d41", "dev-vs-d41", "campus_admin");
+        staff("d44", "dev-vs-d44", "front_desk");
+        staff("d45", "dev-vs-d45", "teacher");
+        String host = "13000000-0000-4000-8000-000000000d45";
+        mvc.perform(json(put("/api/v1/campuses/" + CAMPUS + "/staff/" + host), "dev-vs-d41",
+            "{\"employeeNo\":\"E-IT-D45\",\"designation\":\"Teacher\",\"employmentType\":\"FULL_TIME\",\"joinedOn\":\"2020-04-01\"}")).andExpect(status().isOk());
+        String visits = "/api/v1/campuses/" + CAMPUS + "/visits";
+
+        // The desk lists possible hosts by name only, checks visitors in and out, and sees nothing else.
+        mvc.perform(as(get("/api/v1/campuses/" + CAMPUS + "/visit-hosts"), "dev-vs-d44")).andExpect(status().isOk())
+            .andExpect(jsonPath("$[?(@.personId=='" + host + "')].designation").value("Teacher"));
+        mvc.perform(as(get("/api/v1/campuses/" + CAMPUS + "/visit-hosts"), "dev-vs-d45")).andExpect(status().isNotFound());
+        String id = JsonPath.read(mvc.perform(json(post(visits), "dev-vs-d44",
+            "{\"visitorName\":\"IT Desk Visitor\",\"purpose\":\"Interview\",\"hostPersonId\":\"" + host + "\"}")).andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString(), "$.id");
+        mvc.perform(as(get(visits), "dev-vs-d44")).andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id=='" + id + "')].purpose").value("Interview"));
+        mvc.perform(json(post("/api/v1/visits/" + id + "/checkout"), "dev-vs-d44", "{}")).andExpect(status().isOk());
+        mvc.perform(as(get("/api/v1/campuses/" + CAMPUS + "/staff"), "dev-vs-d44")).andExpect(status().isNotFound());
+        mvc.perform(as(get("/api/v1/campuses/" + CAMPUS + "/bookings"), "dev-vs-d44")).andExpect(status().isNotFound());
+    }
 }

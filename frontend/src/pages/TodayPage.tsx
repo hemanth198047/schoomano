@@ -20,6 +20,7 @@ const roleText: Record<string, string> = {
   teacher: 'Teacher',
   finance_officer: 'Finance officer',
   transport_attendant: 'Transport attendant',
+  front_desk: 'Front desk',
   nurse: 'Nurse',
   safeguarding_lead: 'Safeguarding lead',
 };

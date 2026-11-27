@@ -228,6 +228,20 @@ class AccessPolicyTest {
     }
 
     @Nested
+    class FrontDesk {
+        @Test
+        void frontDeskRecordsVisitorsButSeesNoStudentRecords() {
+            var desk = staff(UUID.randomUUID(), "front_desk", NORTH);
+            var visit = Resource.ordinary("visitor", null, northPath(), null);
+            assertTrue(policy.decide(desk, Permission.VISITOR_RECORD, visit, NOW).allowed());
+            assertTrue(policy.decide(desk, Permission.VISITOR_READ, visit, NOW).allowed());
+            assertFalse(policy.decide(desk, Permission.STUDENT_READ_BASIC, Resource.ordinary("student", UUID.randomUUID(), northPath(), ANAYA), NOW).allowed());
+            assertFalse(policy.decide(desk, Permission.ATTENDANCE_READ, Resource.ordinary("attendance", UUID.randomUUID(), northPath(), ANAYA), NOW).allowed());
+            assertFalse(policy.decide(desk, Permission.HR_READ, Resource.ordinary("staff", null, northPath(), null), NOW).allowed());
+        }
+    }
+
+    @Nested
     class SupportAccess {
         private Actor support(Instant start, Instant end, Instant revoked) {
             return new Actor(null, TENANT_A, Actor.Kind.SUPPORT, List.of(), List.of(), List.of(),

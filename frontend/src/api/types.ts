@@ -981,3 +981,9 @@ export interface Visit {
   checkedOutAt: string | null;
   inside: boolean;
 }
+
+export interface VisitHost {
+  personId: string;
+  name: string;
+  designation: string;
+}

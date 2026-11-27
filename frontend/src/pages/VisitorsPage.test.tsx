@@ -33,28 +33,15 @@ const server = (url: string, init: { method?: string }) => {
   if (url.endsWith('/checkout')) return { body: { ...visit, inside: false } };
   if (url.includes('/visits') && init.method === 'POST') return { status: 201, body: visit };
   if (url.includes('/visits')) return { body: [visit] };
-  if (url.endsWith('/staff'))
-    return {
-      body: [
-        {
-          personId: 'p2',
-          name: 'Ravi Teacher',
-          employeeNo: 'E1',
-          designation: 'Teacher',
-          department: null,
-          employmentType: 'FULL_TIME',
-          joinedOn: '2020-04-01',
-          leftOn: null,
-          status: 'ACTIVE',
-        },
-      ],
-    };
+  if (url.endsWith('/visit-hosts'))
+    return { body: [{ personId: 'p2', name: 'Ravi Teacher', designation: 'Teacher' }] };
   return { status: 404, body: { code: 'not_found', detail: 'no' } };
 };
 
 describe('VisitorsPage', () => {
   it('knows who records and who only looks', () => {
     expect(canRecordVisitors(person('campus_admin'))).toBe(true);
+    expect(canRecordVisitors(person('front_desk'))).toBe(true);
     expect(canRecordVisitors(person('principal'))).toBe(false);
     expect(canSeeVisitors(person('principal'))).toBe(true);
     expect(canSeeVisitors(person('teacher'))).toBe(false);

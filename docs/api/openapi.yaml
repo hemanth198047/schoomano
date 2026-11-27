@@ -3350,6 +3350,15 @@ paths:
         '400': { description: Invalid fields or unknown_host, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: badge_in_use, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/campuses/{campusId}/visit-hosts:
+    get:
+      tags: [Facilities]
+      summary: Active staff a visitor can be here to see, by name and designation only (VISITOR_RECORD)
+      parameters:
+        - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Hosts, content: { application/json: { schema: { type: array, items: { type: object, properties: { personId: { type: string, format: uuid }, name: { type: string }, designation: { type: string } } } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/visits/{id}/checkout:
     post:
       tags: [Facilities]

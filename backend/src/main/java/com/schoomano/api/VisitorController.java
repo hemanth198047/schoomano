@@ -97,6 +97,21 @@ public class VisitorController {
         });
     }
 
+    public record HostView(UUID personId, String name, String designation) { }
+
+    /** Who a visitor can be here to see. The front desk needs the names but not the rest of the staff records. */
+    @GetMapping("/campuses/{campusId}/visit-hosts")
+    public List<HostView> hosts(RequestContext ctx, @PathVariable UUID campusId) {
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            require(jdbc, ctx, Permission.VISITOR_RECORD, campusId);
+            return jdbc.query("""
+                select s.person_id, trim(coalesce(p.given_name, '') || ' ' || coalesce(p.family_name, '')), s.designation
+                  from staff_profile s join person p on p.tenant_id = s.tenant_id and p.id = s.person_id
+                 where s.campus_id = ? and s.status = 'ACTIVE' order by 2 limit 500
+                """, (rs, i) -> new HostView(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3)), campusId);
+        });
+    }
+
     @PostMapping("/visits/{id}/checkout")
     public VisitView checkOut(RequestContext ctx, @PathVariable UUID id) {
         return tenantTx.run(ctx.tenant(), jdbc -> {

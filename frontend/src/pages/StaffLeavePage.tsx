@@ -31,6 +31,7 @@ export const canRequestLeave = (me: Me) =>
     'nurse',
     'safeguarding_lead',
     'transport_attendant',
+    'front_desk',
   );
 export const isHr = (me: Me) => has(me, 'campus_admin', 'group_admin');
 export const canDecideLeave = (me: Me) => has(me, 'campus_admin', 'principal', 'group_admin');
