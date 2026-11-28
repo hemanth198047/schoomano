@@ -1057,6 +1057,43 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/sections/{sectionId}/attendance/report:
+    get:
+      summary: "Attendance of one section over a date range (at most 92 days), one row per enrolled student. Late counts as attended, leave is left out of the percentage, and a student with no counted days has no percentage. ATTENDANCE_READ for the section; otherwise 404."
+      operationId: sectionAttendanceReport
+      parameters:
+        - { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: The report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sectionId: { type: string, format: uuid }
+                  sectionLabel: { type: string }
+                  from: { type: string, format: date }
+                  to: { type: string, format: date }
+                  daysTaken: { type: integer }
+                  students:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        studentId: { type: string, format: uuid }
+                        schoolRef: { type: string }
+                        name: { type: string }
+                        present: { type: integer }
+                        late: { type: integer }
+                        absent: { type: integer }
+                        leave: { type: integer }
+                        percent: { type: [number, 'null'] }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
   /api/v1/staff:
     get:
       summary: "Staff with their live roles. ROLE_GRANT_MANAGE at group scope (group administrators); otherwise 404."
