@@ -25,7 +25,7 @@ class ImportUploadIdempotencyApiIT extends ApiITSupport {
         return mvc.perform(key == null ? request : request.header("Idempotency-Key", key));
     }
 
-    private int batches() {
+    private long batches() {
         return ownerCount("select count(*) from import_batch where file_name like 'idem-up-%'");
     }
 
