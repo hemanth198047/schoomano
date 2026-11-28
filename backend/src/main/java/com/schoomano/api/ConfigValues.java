@@ -22,6 +22,8 @@ final class ConfigValues {
         List<String> problems = switch (key) {
             case "attendance.late_after_minutes" -> value.isInt() && value.asInt() >= 0 && value.asInt() <= 240
                 ? List.of() : List.of("Use a whole number of minutes between 0 and 240.");
+            case "attendance.day_start" -> value.isTextual() && value.asText().matches("^([01]\\d|2[0-3]):[0-5]\\d$")
+                ? List.of() : List.of("Use the time the school day starts, like \"08:30\".");
             case GradeScale.CONFIG_KEY -> gradeScaleProblems(level, value);
             default -> key.startsWith("flag.") && !value.isBoolean() ? List.of("Feature flags are true or false.") : List.of();
         };

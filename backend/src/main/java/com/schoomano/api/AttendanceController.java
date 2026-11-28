@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.schoomano.domain.access.Permission;
 import com.schoomano.domain.access.Resource;
 import com.schoomano.domain.attendance.AttendanceStatus;
+import com.schoomano.domain.attendance.LateRule;
 import com.schoomano.domain.attendance.BatchFingerprint;
 import com.schoomano.domain.tenancy.ScopePath;
 import com.schoomano.platform.ApiException;
@@ -18,6 +19,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -171,6 +173,10 @@ public class AttendanceController {
                 "select student_person_id from student_enrollment where class_section_id = ? and status = 'ENROLLED'", UUID.class, sectionId));
 
             OffsetDateTime now = OffsetDateTime.now(clock);
+            LocalTime dayStart = configured(jdbc, "attendance.day_start", path, now)
+                .filter(v -> v.matches("^\"([01]\\d|2[0-3]):[0-5]\\d\"$")).map(v -> LocalTime.parse(v.replace("\"", ""))).orElse(null);
+            Integer lateAfter = configured(jdbc, "attendance.late_after_minutes", path, now)
+                .filter(v -> v.matches("^\\d{1,3}$")).map(Integer::valueOf).orElse(null);
             List<MarkResult> results = new ArrayList<>();
             int conflicts = 0;
             for (int i = 0; i < req.marks().size(); i++) {
@@ -181,6 +187,7 @@ public class AttendanceController {
                     continue;
                 }
                 OffsetDateTime at = m.markedAt() == null || m.markedAt().isAfter(now) ? now : m.markedAt();
+                st = LateRule.apply(st, req.date(), at.toZonedDateTime(), SCHOOL_ZONE, dayStart, lateAfter);
                 String outcome = jdbc.queryForObject("select attendance_apply(?, ?, ?, ?, ?, ?, ?)", String.class,
                     sessionId, m.studentId(), st.name(), rows.get(i).baseVersion(), ctx.actor().personId(), at, req.source());
                 var current = jdbc.queryForMap("select status, version from attendance_mark where session_id = ? and student_person_id = ?",
@@ -286,6 +293,11 @@ public class AttendanceController {
     }
 
     // ---- helpers --------------------------------------------------------------------------------------------
+
+    private static java.util.Optional<String> configured(JdbcTemplate jdbc, String key, ScopePath path, OffsetDateTime at) {
+        return com.schoomano.domain.config.ConfigResolver.resolve(ConfigController.entries(jdbc, key), key, path, at.toInstant())
+            .map(com.schoomano.domain.config.ResolvedConfig::valueJson);
+    }
 
     private LocalDate today() {
         return LocalDate.now(clock.withZone(SCHOOL_ZONE));

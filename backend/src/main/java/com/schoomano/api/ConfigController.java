@@ -195,7 +195,7 @@ public class ConfigController {
         return e;
     }
 
-    private static List<ConfigEntry> entries(JdbcTemplate jdbc, String key) {
+    static List<ConfigEntry> entries(JdbcTemplate jdbc, String key) {
         return jdbc.query("""
             select config_key, scope_level, scope_id, version, value::text, effective_from, effective_to, status
               from config_version where config_key = ?
