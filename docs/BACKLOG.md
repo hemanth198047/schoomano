@@ -53,7 +53,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B34** (done, verified in CI) Webhooks | M27 | B33 | Signed, retried delivery of school events to registered https endpoints; no student events until D7 |
 | **B35** (done, verified in CI) Approval reminders and escalation | M26 | B25, B30 | A request waiting 24 hours reminds the step's holders; at 72 hours leadership and the requester are told |
 | **B36** (done, verified in CI) Idempotency keys | M27, B6 | B33 | A repeated write with the same Idempotency-Key returns the first answer and does the work once |
-| **B48** (done) Emergency access from the Health page | M30 | B44 | Search, reason, duration, then read-only record; web tests |
+| **B48** (done, verified in CI) Emergency access from the Health page | M30 | B44 | Search, reason, duration, then read-only record; web tests |
 | **B47** (done, verified in CI) Backup and restore drill | M30 | B1 | Script that restores a dump to a scratch database and proves it; runbook; CI with damage checks |
 | **B46** (done, verified in CI) Alerting on operational checks | M30 | B10, B45 | Administrators told once per problem, reminded daily, shared checks with the health screen |
 | **B45** (done, verified in CI) Security notices for emergency access | M30 | B44, B30 | Reviewers told when emergency access is used; the person told when a review ends it |
