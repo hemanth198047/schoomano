@@ -1,6 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { ApiError, apiRequest, apiText } from '../api/client';
-import type { AuditRow, AuditVerification, Me, OperationsHealth, SupportGrant } from '../api/types';
+import type {
+  AuditRow,
+  AuditVerification,
+  BreakGlassGrant,
+  Me,
+  OperationsHealth,
+  SupportGrant,
+} from '../api/types';
 import { useApiSession } from '../app/session';
 import { useApiResource } from '../app/useApiResource';
 import { Button } from '../components/Button';
@@ -12,6 +19,8 @@ import { formatDateTime } from '../lib/format';
 
 /** School administrators approve support and read the trail; platform support (no school role) reads health and the trail. */
 export const canManageSupport = (me: Me) => me.roles.some((r) => r.roleKey === 'group_admin');
+export const canReviewBreakGlass = (me: Me) =>
+  me.roles.some((r) => r.roleKey === 'group_admin' || r.roleKey === 'principal');
 export const canSeeSupportPage = (me: Me) =>
   me.roles.some((r) => r.roleKey === 'group_admin' || r.roleKey === 'principal') ||
   (me.roles.length === 0 && me.children.length === 0);
@@ -29,6 +38,7 @@ export function SupportPage({ me }: { me: Me }) {
       />
       <Health />
       {canManageSupport(me) && <Grants />}
+      {canReviewBreakGlass(me) && <BreakGlass />}
       <Audit />
     </>
   );
@@ -161,6 +171,96 @@ function Grants() {
         </ul>
       )}
     </section>
+  );
+}
+
+const KIND_TEXT = { health_record: 'Health record', safeguarding_case: 'Safeguarding report' };
+const OUTCOME_TEXT = { APPROPRIATE: 'Appropriate', INAPPROPRIATE: 'Not appropriate', ESCALATED: 'Escalated' };
+
+function BreakGlass() {
+  const [list, reload] = useApiResource<BreakGlassGrant[]>('/api/v1/break-glass');
+  return (
+    <section aria-labelledby="bg-h">
+      <h2 id="bg-h">Emergency access</h2>
+      <p className="muted">
+        Staff can open a restricted health or safeguarding record in an emergency for up to four hours, if
+        they say why. Each one must be reviewed by someone else. Choosing not appropriate or escalated ends
+        any access still running.
+      </p>
+      {list.status === 'loading' && <LoadingState label="Loading emergency access" />}
+      {list.status === 'error' && <ErrorState error={list.error} onRetry={reload} />}
+      {list.status === 'ready' &&
+        (list.data.length === 0 ? (
+          <p>No emergency access has been used.</p>
+        ) : (
+          <ul className="plain-list">
+            {list.data.map((g) => (
+              <li key={g.id}>
+                <p>
+                  <strong>{g.person}</strong> opened a {KIND_TEXT[g.resourceType].toLowerCase()}{' '}
+                  <span className="muted">{formatDateTime(g.grantedAt)}</span>{' '}
+                  <StatusBadge tone={g.state === 'ACTIVE' ? 'warning' : 'neutral'}>{g.state}</StatusBadge>
+                </p>
+                <p>Reason given: {g.justification}</p>
+                <p className="muted">
+                  Opened {g.opened} {g.opened === 1 ? 'time' : 'times'} until {formatDateTime(g.expiresAt)}.
+                </p>
+                {g.outcome ? (
+                  <p>
+                    {OUTCOME_TEXT[g.outcome]} (reviewed by {g.reviewedBy}): {g.note}
+                  </p>
+                ) : (
+                  <ReviewForm grant={g} onDone={reload} />
+                )}
+              </li>
+            ))}
+          </ul>
+        ))}
+    </section>
+  );
+}
+
+function ReviewForm({ grant, onDone }: { grant: BreakGlassGrant; onDone: () => void }) {
+  const session = useApiSession();
+  const [outcome, setOutcome] = useState('APPROPRIATE');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await apiRequest(session, `/api/v1/break-glass/${grant.id}/review`, {
+        method: 'POST',
+        body: { outcome, note: note.trim() },
+      });
+      onDone();
+    } catch (err) {
+      setError(oops(err));
+    }
+  }
+  return (
+    <form className="form" onSubmit={(e) => void submit(e)}>
+      <Field label={`Review of ${grant.person}'s access`}>
+        {(p) => (
+          <select {...p} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+            <option value="APPROPRIATE">Appropriate</option>
+            <option value="INAPPROPRIATE">Not appropriate</option>
+            <option value="ESCALATED">Escalate</option>
+          </select>
+        )}
+      </Field>
+      <Field
+        label={`Note on ${grant.person}'s access`}
+        hint="At least 10 characters. Kept with the review."
+        required
+      >
+        {(p) => <textarea {...p} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />}
+      </Field>
+      {error && <p role="alert">{error}</p>}
+      <Button type="submit" disabled={note.trim().length < 10}>
+        {`Record review of ${grant.person}`}
+      </Button>
+    </form>
   );
 }
 

@@ -454,6 +454,23 @@ export interface AuditRow {
   correlationId: string | null;
 }
 
+export interface BreakGlassGrant {
+  id: string;
+  person: string;
+  personId: string;
+  resourceType: 'health_record' | 'safeguarding_case';
+  resourceId: string;
+  justification: string;
+  grantedAt: string;
+  expiresAt: string;
+  state: 'ACTIVE' | 'EXPIRED' | 'ENDED';
+  opened: number;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  outcome: 'APPROPRIATE' | 'INAPPROPRIATE' | 'ESCALATED' | null;
+  note: string | null;
+}
+
 export interface OperationsHealth {
   at: string;
   supportAccessLive: number;

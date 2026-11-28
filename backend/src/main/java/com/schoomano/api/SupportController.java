@@ -282,6 +282,11 @@ public class SupportController {
             long events = count(jdbc, "select count(*) from audit_event where occurred_at > now() - interval '1 day'");
             checks.add(new Check("audit", "Audit trail, last 24 hours", "OK", events + " events, " + denied + " refused."));
 
+            long unreviewed = count(jdbc, "select count(*) from break_glass_grant where reviewed_at is null");
+            long overdue = count(jdbc, "select count(*) from break_glass_grant where reviewed_at is null and granted_at < now() - interval '24 hours'");
+            checks.add(new Check("breakglass", "Emergency access reviews", overdue > 0 ? "ATTENTION" : "OK",
+                unreviewed == 0 ? "Nothing waiting for review." : unreviewed + " waiting for review, " + overdue + " for more than a day."));
+
             int live = (int) count(jdbc, "select count(*) from support_access_grant where revoked_at is null and starts_at <= now() and expires_at > now()");
             checks.add(new Check("support", "Platform support access", "OK",
                 live == 0 ? "No one from support has access now." : live + " approved access open now."));

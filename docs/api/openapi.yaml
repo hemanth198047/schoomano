@@ -3206,6 +3206,58 @@ paths:
               schema: { type: string }
         '400': { description: bad_period (end before start) or bad_request (not a date), content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/break-glass:
+    get:
+      tags: [Support]
+      summary: Emergency access grants with the reason given, how often the record was opened and the review (AUDIT_READ for a school; never platform support). Unreviewed first.
+      responses:
+        '200': { description: Up to 100 grants, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/BreakGlassGrant' } } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Support]
+      summary: Ask for emergency access to a restricted health record (resourceId is the student) or safeguarding report, for 5 to 240 minutes (any member of staff)
+      description: >
+        Needs a reason of at least 20 characters. The record must exist. At most three emergency accesses may run at once for one person.
+        The policy then lets that person open that record until it expires; every opening is audited with the basis BREAK_GLASS.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resourceType, resourceId, justification, minutes]
+              properties:
+                resourceType: { type: string, enum: [health_record, safeguarding_case] }
+                resourceId: { type: string, format: uuid }
+                justification: { type: string, minLength: 20, maxLength: 500 }
+                minutes: { type: integer, minimum: 5, maximum: 240 }
+      responses:
+        '201': { description: Granted, content: { application/json: { schema: { $ref: '#/components/schemas/BreakGlassGrant' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: too_many_live, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/break-glass/{id}/review:
+    post:
+      tags: [Support]
+      summary: Review an emergency access (AUDIT_READ), once, never by the person it was made to
+      description: Not appropriate or escalated ends any access still running at once.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, note]
+              properties:
+                outcome: { type: string, enum: [APPROPRIATE, INAPPROPRIATE, ESCALATED] }
+                note: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '200': { description: Reviewed, content: { application/json: { schema: { $ref: '#/components/schemas/BreakGlassGrant' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: already_reviewed or own_grant, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/audit/verify:
     get:
       tags: [Support]
@@ -3633,6 +3685,23 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    BreakGlassGrant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        person: { type: string }
+        personId: { type: string, format: uuid }
+        resourceType: { type: string, enum: [health_record, safeguarding_case] }
+        resourceId: { type: string, format: uuid }
+        justification: { type: string }
+        grantedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        state: { type: string, enum: [ACTIVE, EXPIRED, ENDED] }
+        opened: { type: integer, description: Times the person opened the record while the grant ran }
+        reviewedBy: { type: [string, 'null'] }
+        reviewedAt: { type: [string, 'null'], format: date-time }
+        outcome: { type: [string, 'null'], enum: [APPROPRIATE, INAPPROPRIATE, ESCALATED, null] }
+        note: { type: [string, 'null'] }
     Webhook:
       type: object
       properties:

@@ -158,4 +158,72 @@ describe('SupportPage', () => {
       HTMLAnchorElement.prototype.click = realClick;
     }
   });
+
+  it('lists emergency access and records a review with a note', async () => {
+    const base = {
+      personId: 'p1',
+      resourceType: 'health_record' as const,
+      resourceId: 'r1',
+      grantedAt: '2026-11-27T05:00:00Z',
+      expiresAt: '2026-11-27T05:30:00Z',
+      state: 'EXPIRED' as const,
+      opened: 2,
+      reviewedBy: null,
+      reviewedAt: null,
+      outcome: null,
+      note: null,
+    };
+    const list = [
+      { ...base, id: 'b1', person: 'Ravi Teacher', justification: 'Child collapsed at dispersal' },
+      {
+        ...base,
+        id: 'b2',
+        person: 'Farah Teacher',
+        justification: 'Allergy check on a trip',
+        opened: 1,
+        reviewedBy: 'Asha Admin',
+        reviewedAt: '2026-11-28T05:00:00Z',
+        outcome: 'INAPPROPRIATE' as const,
+        note: 'No incident that day',
+        state: 'ENDED' as const,
+      },
+    ];
+    const calls = stubFetch((url) => {
+      if (url.endsWith('/operations/health')) return { body: health };
+      if (url.endsWith('/support/grants')) return { body: [] };
+      if (url.endsWith('/break-glass/b1/review')) return { body: { ...list[0], outcome: 'APPROPRIATE' } };
+      if (url.endsWith('/break-glass')) return { body: list };
+      if (url.includes('/audit')) return { body: rows };
+      return { status: 404, body: { code: 'not_found', detail: 'no' } };
+    });
+    const { container } = renderWithApp(<SupportPage me={admin} />);
+    expect(await screen.findByText('Reason given: Child collapsed at dispersal')).toBeInTheDocument();
+    expect(screen.getByText(/Opened 2 times/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Not appropriate \(reviewed by Asha Admin\): No incident that day/),
+    ).toBeInTheDocument();
+    const record = screen.getByRole('button', { name: 'Record review of Ravi Teacher' });
+    expect(record).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Record review of Farah/ })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/^Note on Ravi Teacher/), 'Matches the incident report');
+    expect(await axeViolations(container)).toEqual([]);
+    await userEvent.click(record);
+    const post = calls.find((c) => c.url.endsWith('/break-glass/b1/review'))!;
+    expect(JSON.parse(String(post.init.body))).toEqual({
+      outcome: 'APPROPRIATE',
+      note: 'Matches the incident report',
+    });
+  });
+
+  it('keeps emergency access reasons from platform support', async () => {
+    const calls = stubFetch((url) => {
+      if (url.endsWith('/operations/health')) return { body: health };
+      if (url.includes('/audit')) return { body: rows };
+      return { status: 404, body: { code: 'not_found', detail: 'no' } };
+    });
+    renderWithApp(<SupportPage me={support} />);
+    await screen.findByText('Text messages');
+    expect(screen.queryByRole('heading', { name: 'Emergency access' })).not.toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes('/break-glass'))).toBe(false);
+  });
 });
