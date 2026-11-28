@@ -369,7 +369,7 @@ export interface AttendanceConflict {
 
 export interface InboxItem {
   id: string;
-  kind: 'ANNOUNCEMENT' | 'ATTENDANCE' | 'SUBSTITUTION' | 'APPROVAL' | 'VISITOR' | 'SECURITY';
+  kind: 'ANNOUNCEMENT' | 'ATTENDANCE' | 'SUBSTITUTION' | 'APPROVAL' | 'VISITOR' | 'SECURITY' | 'OPERATIONS';
   title: string;
   body: string;
   receivedAt: string;
