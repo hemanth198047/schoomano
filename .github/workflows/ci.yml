@@ -24,6 +24,19 @@ jobs:
       # Domain unit tests (incl. domain purity) + Testcontainers API tests (Docker is available on ubuntu runners).
       - name: Build and test
         run: mvn -B -ntp verify
+      # The stand-alone checker must accept a real export, and refuse the same file with one entry changed.
+      - name: Check the audit export with the stand-alone verifier
+        run: |
+          node --test scripts/verify-audit-export.test.mjs
+          node scripts/verify-audit-export.mjs target/audit-export-it.csv
+          node --input-type=module -e "
+            import { readFileSync, writeFileSync } from 'node:fs';
+            import { parseCsv } from './scripts/verify-audit-export.mjs';
+            const rows = parseCsv(readFileSync('target/audit-export-it.csv', 'utf8'));
+            rows[2][rows[0].indexOf('action')] += '-changed';
+            writeFileSync('target/audit-export-tampered.csv', rows.map((r) => r.map((c) => '\"' + c.replaceAll('\"', '\"\"') + '\"').join(',')).join('\r\n') + '\r\n');
+          "
+          if node scripts/verify-audit-export.mjs target/audit-export-tampered.csv; then echo "the verifier did not notice a changed entry"; exit 1; fi
 
   database:
     runs-on: ubuntu-24.04

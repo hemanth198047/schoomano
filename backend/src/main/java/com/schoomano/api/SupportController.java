@@ -187,13 +187,15 @@ public class SupportController {
         OffsetDateTime end = to == null ? null : to.plusDays(1).atStartOfDay(INDIA).toOffsetDateTime();
         return tenantTx.run(ctx.tenant(), jdbc -> {
             require(jdbc, ctx, Permission.AUDIT_READ, "audit");
+            jdbc.execute("set local timezone = 'UTC'");   // the hash was made from the time written in UTC
             List<List<String>> rows = jdbc.query("""
                 select a.seq, a.occurred_at, a.actor_kind,
                        case when a.actor_kind = 'SUPPORT' then 'Support: ' || coalesce(g.support_user_ref, 'unknown')
                             when p.id is not null then trim(p.given_name || ' ' || coalesce(p.family_name, ''))
                             else a.actor_kind end,
                        a.action, a.resource_type, a.resource_id, a.outcome, a.reason, a.correlation_id, a.details::text,
-                       encode(a.prev_hash, 'hex'), encode(a.hash, 'hex')
+                       encode(a.prev_hash, 'hex'), encode(a.hash, 'hex'),
+                       a.tenant_id::text, a.actor_person_id::text, a.policy_version, a.occurred_at::text, a.hash_in_utc::text
                   from audit_event a
                   left join person p on p.id = a.actor_person_id and a.actor_kind <> 'SUPPORT'
                   left join support_access_grant g on g.id = a.actor_person_id and a.actor_kind = 'SUPPORT'
@@ -206,7 +208,7 @@ public class SupportController {
                     List<String> r = new ArrayList<>();
                     r.add(Long.toString(rs.getLong(1)));
                     r.add(rs.getObject(2, OffsetDateTime.class).atZoneSameInstant(INDIA).toOffsetDateTime().toString());
-                    for (int c = 3; c <= 13; c++) {
+                    for (int c = 3; c <= 18; c++) {
                         r.add(rs.getString(c));
                     }
                     return r;
@@ -214,7 +216,8 @@ public class SupportController {
             boolean truncated = rows.size() > EXPORT_MAX_ROWS;
             List<List<String>> kept = truncated ? rows.subList(0, EXPORT_MAX_ROWS) : rows;
             StringBuilder csv = new StringBuilder(CsvCells.line(List.of("seq", "occurred_at", "actor_kind", "actor", "action", "resource_type",
-                "resource_id", "outcome", "reason", "correlation_id", "details", "prev_hash", "hash")));
+                "resource_id", "outcome", "reason", "correlation_id", "details", "prev_hash", "hash", "tenant_id", "actor_person_id", "policy_version",
+                "occurred_at_utc", "hash_in_utc")));
             kept.forEach(r -> csv.append(CsvCells.line(r)));
             Map<String, Object> details = new java.util.LinkedHashMap<>();
             details.put("rows", kept.size());

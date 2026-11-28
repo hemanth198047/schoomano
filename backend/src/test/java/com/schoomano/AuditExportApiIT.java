@@ -34,9 +34,9 @@ class AuditExportApiIT extends ApiITSupport {
             .andReturn().getResponse().getContentAsString();
         String[] lines = csv.split("\r\n");
         assertEquals(3, lines.length);
-        assertEquals("seq,occurred_at,actor_kind,actor,action,resource_type,resource_id,outcome,reason,correlation_id,details,prev_hash,hash", lines[0]);
+        assertEquals("seq,occurred_at,actor_kind,actor,action,resource_type,resource_id,outcome,reason,correlation_id,details,prev_hash,hash,tenant_id,actor_person_id,policy_version,occurred_at_utc,hash_in_utc", lines[0]);
         assertTrue(lines[1].contains(",it.export.probe,probe,p1,SUCCESS,\"'=HYPERLINK(\"\"http://x\"\"),y\","), lines[1]);
-        assertTrue(lines[1].matches(".*,[0-9a-f]{64}$"), "each row ends with its hash");
+        assertTrue(lines[1].matches(".*,[0-9a-f]{64},[0-9a-f-]{36},[^,]*,[^,]*,[0-9-]{10} [0-9:.]+\\+00,true$"), "each row carries what its hash was made from: " + lines[1]);
         assertTrue(lines[2].contains(",p2,SUCCESS,plain,"));
 
         // The export is on the record, with who asked and for what, and the period is respected.
@@ -46,6 +46,11 @@ class AuditExportApiIT extends ApiITSupport {
             .andExpect(header().string("X-Export-Rows", "0"));
         mvc.perform(as(get("/api/v1/audit/export?from=" + tomorrow + "&to=" + today), "dev-asha")).andExpect(status().isBadRequest());
         mvc.perform(as(get("/api/v1/audit/export?from=not-a-date"), "dev-asha")).andExpect(status().isBadRequest());
+
+        // A whole day's export, written to disk so CI can check it with the stand-alone verifier (scripts/verify-audit-export.mjs).
+        String whole = mvc.perform(as(get("/api/v1/audit/export?from=" + today + "&to=" + today), "dev-asha")).andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        java.nio.file.Files.writeString(java.nio.file.Path.of("target", "audit-export-it.csv"), whole);
 
         // Only people who may read the trail, and only their own school's entries.
         mvc.perform(as(get("/api/v1/audit/export"), "dev-meera")).andExpect(status().isNotFound());
