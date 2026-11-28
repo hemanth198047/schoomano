@@ -358,7 +358,11 @@ function ImportWorkspace({ yearId }: { yearId: string }) {
                 key: 'actions',
                 header: 'Actions',
                 render: (b) =>
-                  b.id === latestCommitted ? <RollbackButton onConfirm={() => void rollback(b.id)} /> : null,
+                  b.purgedAt ? (
+                    <span className="muted">File and row values removed {formatDateTime(b.purgedAt)}</span>
+                  ) : b.id === latestCommitted ? (
+                    <RollbackButton onConfirm={() => void rollback(b.id)} />
+                  ) : null,
               },
             ]}
           />

@@ -137,6 +137,22 @@ describe('ImportsPage', () => {
     );
   });
 
+  it('says when an import was purged and offers no rollback for it', async () => {
+    calls = stubFetch((url, init) => {
+      if (url.endsWith('/academic-structure'))
+        return {
+          body: { campusId: 'n', campusName: 'North', years: [year], year, programmes: [], calendar: [] },
+        };
+      if (url.endsWith('/imports') && init.method === 'GET')
+        return { body: [{ ...committed, purgedAt: '2027-03-01T04:30:00Z' }] };
+      return { status: 404, body: { code: 'not_found', detail: 'no route' } };
+    });
+    renderWithApp(<ImportsPage me={admin} campuses={campuses} selectedCampusId={null} />);
+    const table = await screen.findByRole('table', { name: 'Imports for this year' });
+    expect(table).toHaveTextContent('File and row values removed');
+    expect(screen.queryByRole('button', { name: 'Roll back' })).not.toBeInTheDocument();
+  });
+
   it('is not offered to teachers', () => {
     renderWithApp(<ImportsPage me={teacher} campuses={campuses} selectedCampusId={null} />);
     expect(screen.getByText('Imports are for school administrators')).toBeInTheDocument();

@@ -4280,6 +4280,7 @@ components:
         createdAt: { type: string, format: date-time }
         committedAt: { type: string, format: date-time }
         rolledBackAt: { type: string, format: date-time }
+        purgedAt: { type: string, format: date-time, description: When the file and row values were removed after the retention period. A purged import cannot be rolled back (409 import_purged) }
         rowsTotal: { type: integer }
         rows:
           type: array

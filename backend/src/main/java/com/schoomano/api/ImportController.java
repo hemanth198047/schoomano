@@ -80,7 +80,7 @@ public class ImportController {
     public record BatchView(UUID id, String entity, String fileName, String status, UUID academicYearId,
                             String yearLabel, Map<String, Integer> counts, List<String> fileProblems,
                             List<String> missingFromFile, Instant createdAt, Instant committedAt, Instant rolledBackAt,
-                            int rowsTotal, List<RowView> rows) { }
+                            Instant purgedAt, int rowsTotal, List<RowView> rows) { }
     public record CommitResult(BatchView batch, int created, int updated, int unchanged, int skipped) { }
     public record RollbackResult(BatchView batch, int removed, int restored, int linksRestored, List<String> kept) { }
 
@@ -196,6 +196,10 @@ public class ImportController {
             if (!"COMMITTED".equals(b.status())) {
                 throw new ApiException(HttpStatus.CONFLICT, "not_committed", "Only a committed import can be rolled back.");
             }
+            if (Boolean.TRUE.equals(jdbc.queryForObject("select purged_at is not null from import_batch where id = ?", Boolean.class, batchId))) {
+                throw new ApiException(HttpStatus.CONFLICT, "import_purged",
+                    "This import's file and row values were removed after the retention period, so it can no longer be rolled back.");
+            }
             jdbc.queryForObject("select pg_advisory_xact_lock(hashtextextended(?::text, 11))::text", String.class,
                 ctx.tenant().toString());
             Integer later = jdbc.queryForObject("""
@@ -255,7 +259,7 @@ public class ImportController {
             Integer.class, id, action, action);
         return jdbc.queryForObject("""
             select b.id, b.entity, b.file_name, b.status, b.academic_year_id, y.label, b.counts::text,
-                   b.file_problems::text, b.missing_refs::text, b.created_at, b.committed_at, b.rolled_back_at
+                   b.file_problems::text, b.missing_refs::text, b.created_at, b.committed_at, b.rolled_back_at, b.purged_at
               from import_batch b join academic_year y on y.id = b.academic_year_id where b.id = ?
             """, (rs, i) -> new BatchView(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), rs.getString(4),
                 rs.getObject(5, UUID.class), rs.getString(6),
@@ -263,7 +267,7 @@ public class ImportController {
                 readValue(rs.getString(8), new TypeReference<List<String>>() { }),
                 firstHundred(readValue(rs.getString(9), new TypeReference<List<String>>() { })),
                 instant(rs.getObject(10, OffsetDateTime.class)), instant(rs.getObject(11, OffsetDateTime.class)),
-                instant(rs.getObject(12, OffsetDateTime.class)), total == null ? 0 : total, rows), id);
+                instant(rs.getObject(12, OffsetDateTime.class)), instant(rs.getObject(13, OffsetDateTime.class)), total == null ? 0 : total, rows), id);
     }
 
     /** Responses list at most 100 missing references; counts.MISSING carries the total. */

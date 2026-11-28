@@ -170,6 +170,7 @@ export interface ImportBatch {
   createdAt: string;
   committedAt?: string;
   rolledBackAt?: string;
+  purgedAt?: string;
   rowsTotal: number;
   rows: ImportRow[];
 }

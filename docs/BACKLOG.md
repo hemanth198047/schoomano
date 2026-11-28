@@ -53,6 +53,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B34** (done, verified in CI) Webhooks | M27 | B33 | Signed, retried delivery of school events to registered https endpoints; no student events until D7 |
 | **B35** (done, verified in CI) Approval reminders and escalation | M26 | B25, B30 | A request waiting 24 hours reminds the step's holders; at 72 hours leadership and the requester are told |
 | **B36** (done, verified in CI) Idempotency keys | M27, B6 | B33 | A repeated write with the same Idempotency-Key returns the first answer and does the work once |
+| **B37** (done, CI pending) Import file purge | M29 | B2 | Settled imports lose their file and row values after retention and keep their record |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 
