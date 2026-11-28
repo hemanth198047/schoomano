@@ -56,6 +56,16 @@ class GuardianImportApiIT extends ApiITSupport {
               join person g on g.id = r.guardian_person_id where s.school_ref = 'GI-1' and g.mobile_e164 = '+919800000001'"""));
         assertEquals("LEGACY", ownerString("select provenance->>'source' from person where mobile_e164 = '+919800000002'"));
 
+        // Brothers and sisters with the same parent share one household, which holds the children and their guardians.
+        assertEquals(1, ownerCount("""
+            select count(distinct m.household_id) from household_member m join person p on p.id = m.person_id
+             where p.school_ref in ('GI-1', 'GI-2') or p.mobile_e164 = '+919800000001'"""));
+        assertEquals(0, ownerCount("select count(*) from household_member m join person p on p.id = m.person_id where p.school_ref = 'GI-3'"),
+            "a child with no guardian in the file gets no household");
+        assertEquals(2, ownerCount("""
+            select count(*) from household_member m join person p on p.id = m.person_id
+             where m.member_role = 'GUARDIAN' and p.mobile_e164 in ('+919800000001', '+919800000002')"""));
+
         // The same file again changes nothing, and a relationship that was ended is not revived.
         upload(FILE).andExpect(status().isCreated()).andExpect(jsonPath("$.counts.UNCHANGED").value(3)).andExpect(jsonPath("$.counts.CREATE").value(0));
         ownerUpdate("""
@@ -73,11 +83,17 @@ class GuardianImportApiIT extends ApiITSupport {
         assertTrue(kept.stream().anyMatch(k -> k.startsWith("GI-2")));
         assertEquals(0, ownerCount("select count(*) from person where school_ref in ('GI-1', 'GI-3')"));
         assertEquals(0, ownerCount("select count(*) from person where mobile_e164 = '+919800000002'"), "a contact made by the import and unused is removed");
+        assertEquals(0, ownerCount("select count(*) from household_member m join person p on p.id = m.person_id where p.school_ref = 'GI-1'"));
+        assertEquals(2, ownerCount("""
+            select count(*) from household_member m join person p on p.id = m.person_id
+             where p.school_ref = 'GI-2' or p.mobile_e164 = '+919800000001'"""), "what was kept stays in its household");
         assertEquals(1, ownerCount("select count(*) from person where mobile_e164 = '+919800000001'"), "a contact still linked elsewhere stays");
         mvc.perform(get("/api/v1/imports/" + batch).header("Authorization", dev("dev-asha"))).andExpect(jsonPath("$.status").value("ROLLED_BACK"));
 
         // Leave nothing behind for other tests.
         ownerUpdate("""
+            delete from household_member where person_id in (select id from person where school_ref = 'GI-2' or mobile_e164 = '+919800000001');
+            delete from household h where not exists (select 1 from household_member where household_id = h.id) and h.name = 'Iyer household';
             delete from guardian_relationship where student_person_id in (select id from person where school_ref = 'GI-2');
             delete from student_enrollment where student_person_id in (select id from person where school_ref = 'GI-2');
             delete from external_link where person_id in (select id from person where school_ref = 'GI-2');

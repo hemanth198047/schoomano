@@ -281,6 +281,7 @@ public class StudentImporter {
                                                    UUID batchId) {
         List<String> people = new ArrayList<>();
         List<String> relationships = new ArrayList<>();
+        List<UUID> linked = new ArrayList<>();
         String provenance = write(Map.of("source", SOURCE, "batchId", batchId.toString()));
         for (GuardianAdd a : adds) {
             List<UUID> found = jdbc.queryForList("select id from person where mobile_e164 = ?", UUID.class, a.mobile());
@@ -312,8 +313,50 @@ public class StudentImporter {
                 values (?, ?, ?, ?, true, true, true, true, true, false, 'ACTIVE', ?::jsonb) returning id
                 """, UUID.class, tenant, guardian, student, a.relationship(), provenance);
             relationships.add(rel.toString());
+            linked.add(guardian);
         }
-        return Map.of("people", people, "relationships", relationships);
+        List<String> households = new ArrayList<>();
+        List<String> memberships = new ArrayList<>();
+        shareHousehold(jdbc, tenant, student, linked, households, memberships);
+        return Map.of("people", people, "relationships", relationships, "households", households, "memberships", memberships);
+    }
+
+    /**
+     * Puts the student in the household of a guardian just linked (so brothers and sisters imported with the same parent end up
+     * together), or starts a new household named after the student's family. What was added is recorded for rollback.
+     */
+    private static void shareHousehold(JdbcTemplate jdbc, UUID tenant, UUID student, List<UUID> linked, List<String> households,
+                                       List<String> memberships) {
+        if (linked.isEmpty()) {
+            return;
+        }
+        UUID household = null;
+        for (UUID g : linked) {
+            List<UUID> existing = jdbc.queryForList(
+                "select household_id from household_member where person_id = ? and member_role = 'GUARDIAN' order by household_id limit 1", UUID.class, g);
+            if (!existing.isEmpty()) {
+                household = existing.get(0);
+                break;
+            }
+        }
+        if (household == null) {
+            String family = jdbc.queryForObject("select coalesce(family_name, given_name) from person where id = ?", String.class, student);
+            household = jdbc.queryForObject("insert into household (tenant_id, name) values (?, ?) returning id", UUID.class, tenant,
+                family + " household");
+            households.add(household.toString());
+        }
+        List<UUID> people = new ArrayList<>();
+        people.add(student);
+        people.addAll(linked);
+        for (UUID p : people) {
+            int added = jdbc.update("""
+                insert into household_member (tenant_id, household_id, person_id, member_role) values (?, ?, ?, ?)
+                on conflict do nothing
+                """, tenant, household, p, p.equals(student) ? "STUDENT" : "GUARDIAN");
+            if (added > 0) {
+                memberships.add(household + ":" + p);
+            }
+        }
     }
 
     /** Removes the guardian links and contacts an import row created, unless someone has changed or used them since. */
@@ -334,6 +377,18 @@ public class StudentImporter {
             if (gone == 0 && left != null && left > 0) {
                 kept.add(ref + ": a guardian link was kept, because it was changed after the import.");
             }
+        }
+        for (String member : m.getOrDefault("memberships", List.of())) {
+            String[] parts = member.split(":");
+            // Only for people who no longer have any guardian link: a contact or child that was kept stays in its household.
+            jdbc.update("""
+                delete from household_member where household_id = ? and person_id = ?
+                   and not exists (select 1 from guardian_relationship where guardian_person_id = person_id or student_person_id = person_id)
+                """, UUID.fromString(parts[0]), UUID.fromString(parts[1]));
+        }
+        for (String h : m.getOrDefault("households", List.of())) {
+            jdbc.update("delete from household h where h.id = ? and not exists (select 1 from household_member where household_id = h.id)",
+                UUID.fromString(h));
         }
         for (String p : m.getOrDefault("people", List.of())) {
             UUID id = UUID.fromString(p);
