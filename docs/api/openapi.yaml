@@ -3565,7 +3565,7 @@ components:
       name: Idempotency-Key
       in: header
       required: false
-      description: Optional on POST, PUT, PATCH and DELETE (file uploads handle it themselves: only the student import upload keeps answers). 8 to 100 letters, digits or . _ - and colon. The first successful JSON answer is kept for 24 hours and returned again, with Idempotent-Replay true, to the same caller repeating the same request. The same key on a different request gives 422 idempotency_key_reused; a repeat while the first is still running gives 409 request_in_progress. Failed requests are not kept, so a retry with the same key runs again.
+      description: Optional on POST, PUT, PATCH and DELETE (file uploads handle it themselves, and only the student import upload keeps answers). 8 to 100 letters, digits or . _ - and colon. The first successful JSON answer is kept for 24 hours and returned again, with Idempotent-Replay true, to the same caller repeating the same request. The same key on a different request gives 422 idempotency_key_reused; a repeat while the first is still running gives 409 request_in_progress. Failed requests are not kept, so a retry with the same key runs again.
       schema: { type: string, minLength: 8, maxLength: 100 }
     TenantSelector:
       name: X-Schoomano-Tenant
