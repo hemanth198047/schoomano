@@ -63,6 +63,16 @@ do $$ declare other uuid := (select id from bg_ids where n = 2); begin
   raise notice 'G3 pass: bad reviews end the access';
 end $$;
 
+-- G5: staff are told through the SECURITY notice kind, and no other new kind is accepted.
+do $$ declare me uuid := (select id from bg_ids where n = 1); begin
+  if notice_tell_staff('SECURITY', '12000000-0000-4000-8000-000000000001', 'Emergency access used', 'Someone opened a health record.', array[me], null) <> 1 then
+    raise exception 'G5 failed: security notice not delivered'; end if;
+  begin perform notice_tell_staff('GOSSIP', '12000000-0000-4000-8000-000000000001', 'x', 'y', array[me], null);
+    raise exception 'G5 failed: any kind accepted';
+  exception when check_violation then null; end;
+  raise notice 'G5 pass: security notices';
+end $$;
+
 -- G4: another school sees none of it.
 select set_config('app.tenant_id', '10000000-0000-4000-8000-000000000002', true);
 do $$ begin

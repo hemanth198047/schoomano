@@ -84,6 +84,10 @@ public class BreakGlassController {
                 """, UUID.class, ctx.tenant().value(), ctx.actor().personId(), req.resourceType(), req.resourceId(), req.justification().trim(), req.minutes());
             audit.write(jdbc, ctx, "breakglass.granted", "break_glass_grant", id.toString(), "SUCCESS", null,
                 Map.of("resourceType", req.resourceType(), "minutes", req.minutes()));
+            UUID campus = campusOf(jdbc, req.resourceType(), req.resourceId());
+            String who = jdbc.queryForObject("select trim(given_name || ' ' || coalesce(family_name, '')) from person where id = ?", String.class, ctx.actor().personId());
+            tell(jdbc, campus, "Emergency access used", who + " opened a " + kindText(req.resourceType()) + " in an emergency for up to "
+                + req.minutes() + " minutes. Please review it under Support and audit.", reviewers(jdbc, campus, ctx.actor().personId()));
             return grants(jdbc, "g.id = ?", id).get(0);
         });
     }
@@ -119,8 +123,43 @@ public class BreakGlassController {
                 throw new ApiException(HttpStatus.CONFLICT, "not_reviewable", "This emergency access cannot be reviewed.");
             }
             audit.write(jdbc, ctx, "breakglass.reviewed", "break_glass_grant", id.toString(), "SUCCESS", null, Map.of("outcome", req.outcome()));
+            if (!"APPROPRIATE".equals(req.outcome())) {
+                UUID campus = campusOf(jdbc, g.resourceType(), g.resourceId());
+                tell(jdbc, campus, "Emergency access ended", "Your emergency access to a " + kindText(g.resourceType())
+                    + " was reviewed as " + ("ESCALATED".equals(req.outcome()) ? "needing escalation" : "not appropriate") + " and has ended. Speak to the principal.",
+                    List.of(g.personId()));
+            }
             return grants(jdbc, "g.id = ?", id).get(0);
         });
+    }
+
+    private static String kindText(String resourceType) {
+        return "health_record".equals(resourceType) ? "health record" : "safeguarding report";
+    }
+
+    /** The campus the child is enrolled at, which is where reviewers are told. */
+    private static UUID campusOf(JdbcTemplate jdbc, String resourceType, UUID resourceId) {
+        String sql = "health_record".equals(resourceType)
+            ? "select campus_id from student_enrollment where student_person_id = ? order by created_at desc limit 1"
+            : "select e.campus_id from safeguarding_report r join student_enrollment e on e.student_person_id = r.student_person_id where r.id = ? order by e.created_at desc limit 1";
+        return jdbc.queryForObject(sql, UUID.class, resourceId);
+    }
+
+    /** Principals and group administrators, school-wide or of this campus, except the person who used the access. */
+    private static List<UUID> reviewers(JdbcTemplate jdbc, UUID campus, UUID except) {
+        return jdbc.queryForList("""
+            select distinct person_id from role_grant
+             where role_key in ('principal', 'group_admin') and person_id <> ? and (valid_to is null or valid_to > now())
+               and (scope_level = 'GROUP' or (scope_level = 'CAMPUS' and scope_id = ?))
+            """, UUID.class, except, campus);
+    }
+
+    private static void tell(JdbcTemplate jdbc, UUID campus, String title, String body, List<UUID> people) {
+        if (people.isEmpty()) {
+            return;
+        }
+        String literal = "{" + String.join(",", people.stream().map(UUID::toString).toList()) + "}";
+        jdbc.queryForObject("select notice_tell_staff('SECURITY', ?, ?, ?, ?::uuid[], null)", Integer.class, campus, title, body, literal);
     }
 
     private void requireReviewer(JdbcTemplate jdbc, RequestContext ctx) {

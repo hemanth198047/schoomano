@@ -49,6 +49,12 @@ class BreakGlassApiIT extends ApiITSupport {
             String id = JsonPath.read(made, "$.id");
             assertEquals(1, ownerCount("select count(*) from audit_event where action = 'breakglass.granted' and resource_id = '" + id + "'"));
 
+            // Reviewers are told in their inbox, without the child's name or the reason; the person asking is not.
+            assertEquals(1, ownerCount("select count(*) from notice where kind = 'SECURITY' and title = 'Emergency access used' and body not like '%IT-BG%' and body like '%opened a health record%'"));
+            assertEquals(0, ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.title = 'Emergency access used' and d.channel = 'IN_APP'"
+                + " and d.recipient_person_id = (select person_id from break_glass_grant where id = '" + id + "')"));
+            assertEquals(true, ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.title = 'Emergency access used' and d.channel = 'IN_APP'") >= 1);
+
             // The grant opens the record for this person (the open is on the record), and not for others.
             mvc.perform(as(get(RECORD), "dev-ravi"));
             assertEquals(1, ownerCount("select count(*) from audit_event where action = 'access.health_record_read' and outcome = 'ALLOW' and resource_id = '" + ANAYA
@@ -83,6 +89,8 @@ class BreakGlassApiIT extends ApiITSupport {
             mvc.perform(json(post("/api/v1/break-glass/" + secondId + "/review"), "dev-asha",
                 "{\"outcome\":\"INAPPROPRIATE\",\"note\":\"No incident that day, trip is not an emergency\"}")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("ENDED"));
+            assertEquals(1, ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.title = 'Emergency access ended' and d.channel = 'IN_APP' and n.body not like '%IT-BG%'"
+                + " and d.recipient_person_id = (select person_id from break_glass_grant where id = '" + secondId + "')"));
         } finally {
             ownerUpdate("delete from break_glass_grant where justification like 'IT-BG%'");
         }
