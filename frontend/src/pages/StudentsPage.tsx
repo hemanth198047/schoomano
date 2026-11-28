@@ -206,7 +206,12 @@ export function StudentProfilePage({ me }: { me: Me }) {
           {s.dateOfBirth && (
             <>
               <dt>Date of birth</dt>
-              <dd>{formatDay(s.dateOfBirth)}</dd>
+              <dd>
+                {formatDay(s.dateOfBirth)}{' '}
+                {s.ownedFields.includes('dateOfBirth') && (
+                  <StatusBadge tone="neutral">Old system</StatusBadge>
+                )}
+              </dd>
             </>
           )}
           {s.households.length > 0 && (
@@ -222,7 +227,8 @@ export function StudentProfilePage({ me }: { me: Me }) {
       {s.placements.length > 0 && (
         <section className="section" aria-labelledby="placements-h">
           <h2 id="placements-h" className="section__title">
-            Placement
+            Placement{' '}
+            {s.ownedFields.includes('placement') && <StatusBadge tone="neutral">Old system</StatusBadge>}
           </h2>
           <DataTable
             caption="Placement by year"

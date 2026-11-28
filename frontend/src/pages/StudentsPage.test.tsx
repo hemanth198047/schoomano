@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -147,6 +147,25 @@ describe('Students', () => {
     expect(karan).toHaveTextContent('Restricted');
     expect(karan).toHaveTextContent('Notices');
     expect(karan).not.toHaveTextContent('Pickup');
+  });
+
+  it('marks each detail the old system owns, and only those', async () => {
+    profile(admin);
+    const details = await screen.findByRole('region', { name: 'Details' });
+    expect(within(details).getAllByText('Old system')).toHaveLength(3);
+    expect(
+      within(screen.getByRole('region', { name: 'Placement Old system' })).getByText('Old system'),
+    ).toBeInTheDocument();
+    cleanup();
+    calls = stubFetch((url) =>
+      url.endsWith('/students/s1')
+        ? { body: { ...anaya, ownedFields: ['givenName'] } }
+        : { status: 404, body: { code: 'not_found', detail: 'no route' } },
+    );
+    profile(admin);
+    const some = await screen.findByRole('region', { name: 'Details' });
+    expect(within(some).getAllByText('Old system')).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Placement' })).toBeInTheDocument();
   });
 
   it('restricting a guardian defaults to notices only and requires a reason', async () => {
