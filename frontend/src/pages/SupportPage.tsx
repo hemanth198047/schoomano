@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ApiError, apiRequest } from '../api/client';
+import { ApiError, apiRequest, apiText } from '../api/client';
 import type { AuditRow, AuditVerification, Me, OperationsHealth, SupportGrant } from '../api/types';
 import { useApiSession } from '../app/session';
 import { useApiResource } from '../app/useApiResource';
@@ -170,6 +170,9 @@ function Audit() {
   const [more, setMore] = useState<AuditRow[]>([]);
   const [verification, setVerification] = useState<AuditVerification | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [exported, setExported] = useState<string | null>(null);
   const query = `/api/v1/audit?limit=50${kind ? `&actorKind=${kind}` : ''}`;
   const [first, reload] = useApiResource<AuditRow[]>(query);
   const all = first.status === 'ready' ? [...first.data, ...more] : [];
@@ -180,6 +183,31 @@ function Audit() {
     try {
       const next = await apiRequest<AuditRow[]>(session, `${query}&beforeSeq=${last.seq}`);
       setMore((m) => [...m, ...next]);
+    } catch (e) {
+      setError(oops(e));
+    }
+  }
+
+  async function download() {
+    setError(null);
+    setExported(null);
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    if (kind) params.set('actorKind', kind);
+    try {
+      const file = await apiText(session, `/api/v1/audit/export?${params.toString()}`);
+      const url = URL.createObjectURL(new Blob([file.text], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `audit-${from || 'start'}-to-${to || 'now'}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setExported(
+        file.truncated
+          ? 'The file holds the first 50,000 entries of this period. Choose a shorter period to get the rest.'
+          : 'The audit trail for this period has been downloaded. The download is recorded in the trail.',
+      );
     } catch (e) {
       setError(oops(e));
     }
@@ -213,6 +241,18 @@ function Audit() {
           </select>
         )}
       </Field>
+      <div className="form form--inline">
+        <Field label="From date" hint="Optional">
+          {(p) => <input {...p} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />}
+        </Field>
+        <Field label="To date" hint="Optional, included">
+          {(p) => <input {...p} type="date" value={to} onChange={(e) => setTo(e.target.value)} />}
+        </Field>
+        <Button variant="quiet" onClick={() => void download()}>
+          Download as a spreadsheet (CSV)
+        </Button>
+      </div>
+      {exported && <p role="status">{exported}</p>}
       <Button variant="quiet" onClick={() => void verify()}>
         Check the trail has not been altered
       </Button>

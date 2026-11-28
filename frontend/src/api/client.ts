@@ -88,6 +88,32 @@ export async function apiRequest<T>(
   throw await errorFrom(res);
 }
 
+/** Fetches a text file (a CSV export) with the session's sign-in. `truncated` is true when the server cut the file short. */
+export async function apiText(
+  session: ApiSession,
+  path: string,
+): Promise<{ text: string; truncated: boolean }> {
+  const headers: Record<string, string> = {
+    Accept: 'text/csv',
+    Authorization: `Bearer ${session.token}`,
+    'X-Correlation-Id': newCorrelationId(),
+  };
+  if (session.tenantSlug) headers['X-Schoomano-Tenant'] = session.tenantSlug;
+  let res: Response;
+  try {
+    res = await fetch(`${session.baseUrl}${path}`, { headers });
+  } catch {
+    throw new ApiError(
+      0,
+      'network_unreachable',
+      'The server could not be reached. Check your connection.',
+      null,
+    );
+  }
+  if (!res.ok) throw await errorFrom(res);
+  return { text: await res.text(), truncated: res.headers.get('X-Export-Truncated') === 'true' };
+}
+
 /** Calls an endpoint that needs no session (phone sign-in). Same error shape as apiRequest. */
 export async function publicRequest<T>(baseUrl: string, path: string, body: unknown): Promise<T> {
   let res: Response;

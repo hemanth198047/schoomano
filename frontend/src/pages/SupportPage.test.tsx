@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { Me } from '../api/types';
@@ -117,5 +117,45 @@ describe('SupportPage', () => {
     expect(
       await screen.findByText(/Checked 42 entries. Nothing has been changed or removed./),
     ).toBeInTheDocument();
+  });
+
+  it('downloads the audit trail for a period and says when the file was cut short', async () => {
+    let truncated = false;
+    const calls = stubFetch((url) => {
+      if (url.endsWith('/operations/health')) return { body: health };
+      if (url.includes('/audit/export')) {
+        const headers: Record<string, string> = truncated ? { 'X-Export-Truncated': 'true' } : {};
+        return { body: 'seq,occurred_at', headers };
+      }
+      if (url.includes('/audit')) return { body: rows };
+      return { status: 404, body: { code: 'not_found', detail: 'no' } };
+    });
+    const made: Blob[] = [];
+    URL.createObjectURL = (b: Blob | MediaSource) => {
+      made.push(b as Blob);
+      return 'blob:x';
+    };
+    URL.revokeObjectURL = () => undefined;
+    const clicked: string[] = [];
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      clicked.push(this.download);
+    };
+    try {
+      renderWithApp(<SupportPage me={support} />);
+      fireEvent.change(await screen.findByLabelText(/From date/), { target: { value: '2026-11-01' } });
+      fireEvent.change(screen.getByLabelText(/To date/), { target: { value: '2026-11-30' } });
+      await userEvent.click(screen.getByRole('button', { name: 'Download as a spreadsheet (CSV)' }));
+      expect(await screen.findByText(/has been downloaded/)).toBeInTheDocument();
+      expect(calls.some((c) => c.url.endsWith('/audit/export?from=2026-11-01&to=2026-11-30'))).toBe(true);
+      expect(clicked).toEqual(['audit-2026-11-01-to-2026-11-30.csv']);
+      expect(made).toHaveLength(1);
+
+      truncated = true;
+      await userEvent.click(screen.getByRole('button', { name: 'Download as a spreadsheet (CSV)' }));
+      expect(await screen.findByText(/first 50,000 entries/)).toBeInTheDocument();
+    } finally {
+      HTMLAnchorElement.prototype.click = realClick;
+    }
   });
 });

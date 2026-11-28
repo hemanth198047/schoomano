@@ -3185,6 +3185,27 @@ paths:
       responses:
         '200': { description: Entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AuditRow' } } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/audit/export:
+    get:
+      tags: [Support]
+      summary: The audit trail for a period as a CSV file, oldest first (AUDIT_READ; also open to platform support during an approved grant). The export is itself audited as audit.exported.
+      description: >
+        Dates are India dates and both ends are included. Each row carries the entry's hash and the hash before it, so the file can
+        be checked against the trail. Cells that a spreadsheet would run as a formula are prefixed with an apostrophe. At most
+        50,000 entries; a longer period is cut off and answered with the header X-Export-Truncated true, and the reader narrows the dates.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: actorKind, in: query, schema: { type: string, enum: [USER, SUPPORT, SYSTEM, BREAK_GLASS, INTEGRATION] } }
+        - { name: action, in: query, description: Prefix match, schema: { type: string } }
+      responses:
+        '200':
+          description: The file. Headers X-Export-Rows (entries included) and, when cut short, X-Export-Truncated true.
+          content:
+            text/csv:
+              schema: { type: string }
+        '400': { description: bad_period (end before start) or bad_request (not a date), content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
   /api/v1/audit/verify:
     get:
       tags: [Support]

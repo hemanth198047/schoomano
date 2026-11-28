@@ -16,12 +16,20 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.schoomano.platform.CsvCells;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -157,6 +165,71 @@ public class SupportController {
                 """, (rs, i) -> new AuditRow(rs.getLong(1), rs.getObject(2, OffsetDateTime.class), rs.getString(3), rs.getString(4),
                     rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10), parse(rs.getString(11))),
                 actorKind, actorKind, action, action, beforeSeq, beforeSeq, n);
+        });
+    }
+
+    /** Most rows one export holds; a longer period is cut off here and says so, and the reader narrows the dates. */
+    static final int EXPORT_MAX_ROWS = 50_000;
+    private static final ZoneId INDIA = ZoneId.of("Asia/Kolkata");
+
+    /**
+     * The audit trail as a CSV file for a period (dates in India time, both ends included), oldest first, with each
+     * entry's hash and the hash before it so the file can be checked against the trail. The export is itself audited.
+     */
+    @GetMapping("/audit/export")
+    public ResponseEntity<byte[]> export(RequestContext ctx, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                         @RequestParam(required = false) String actorKind, @RequestParam(required = false) String action) {
+        if (from != null && to != null && to.isBefore(from)) {
+            throw ApiException.badRequest("bad_period", "The end date is before the start date.");
+        }
+        OffsetDateTime start = from == null ? null : from.atStartOfDay(INDIA).toOffsetDateTime();
+        OffsetDateTime end = to == null ? null : to.plusDays(1).atStartOfDay(INDIA).toOffsetDateTime();
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            require(jdbc, ctx, Permission.AUDIT_READ, "audit");
+            List<List<String>> rows = jdbc.query("""
+                select a.seq, a.occurred_at, a.actor_kind,
+                       case when a.actor_kind = 'SUPPORT' then 'Support: ' || coalesce(g.support_user_ref, 'unknown')
+                            when p.id is not null then trim(p.given_name || ' ' || coalesce(p.family_name, ''))
+                            else a.actor_kind end,
+                       a.action, a.resource_type, a.resource_id, a.outcome, a.reason, a.correlation_id, a.details::text,
+                       encode(a.prev_hash, 'hex'), encode(a.hash, 'hex')
+                  from audit_event a
+                  left join person p on p.id = a.actor_person_id and a.actor_kind <> 'SUPPORT'
+                  left join support_access_grant g on g.id = a.actor_person_id and a.actor_kind = 'SUPPORT'
+                 where (?::timestamptz is null or a.occurred_at >= ?::timestamptz)
+                   and (?::timestamptz is null or a.occurred_at < ?::timestamptz)
+                   and (?::text is null or a.actor_kind = ?::text)
+                   and (?::text is null or a.action like ?::text || '%')
+                 order by a.seq limit ?
+                """, (rs, i) -> {
+                    List<String> r = new ArrayList<>();
+                    r.add(Long.toString(rs.getLong(1)));
+                    r.add(rs.getObject(2, OffsetDateTime.class).atZoneSameInstant(INDIA).toOffsetDateTime().toString());
+                    for (int c = 3; c <= 13; c++) {
+                        r.add(rs.getString(c));
+                    }
+                    return r;
+                }, start, start, end, end, actorKind, actorKind, action, action, EXPORT_MAX_ROWS + 1);
+            boolean truncated = rows.size() > EXPORT_MAX_ROWS;
+            List<List<String>> kept = truncated ? rows.subList(0, EXPORT_MAX_ROWS) : rows;
+            StringBuilder csv = new StringBuilder(CsvCells.line(List.of("seq", "occurred_at", "actor_kind", "actor", "action", "resource_type",
+                "resource_id", "outcome", "reason", "correlation_id", "details", "prev_hash", "hash")));
+            kept.forEach(r -> csv.append(CsvCells.line(r)));
+            Map<String, Object> details = new java.util.LinkedHashMap<>();
+            details.put("rows", kept.size());
+            details.put("truncated", truncated);
+            details.put("from", from == null ? null : from.toString());
+            details.put("to", to == null ? null : to.toString());
+            audit.write(jdbc, ctx, "audit.exported", "audit", null, "SUCCESS", null, details);
+            ResponseEntity.BodyBuilder ok = ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"audit-" + (from == null ? "start" : from) + "-to-" + (to == null ? "now" : to) + ".csv\"")
+                .header("X-Export-Rows", Integer.toString(kept.size()));
+            if (truncated) {
+                ok = ok.header("X-Export-Truncated", "true");
+            }
+            return ok.body(csv.toString().getBytes(StandardCharsets.UTF_8));
         });
     }
 

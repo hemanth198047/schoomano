@@ -5,9 +5,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** RFC 9457 problem responses. Internal messages and stack traces never reach the client. */
 @RestControllerAdvice
@@ -29,6 +32,13 @@ public class ApiExceptionHandler {
             .map(f -> java.util.Map.of("field", f.getField(), "message", String.valueOf(f.getDefaultMessage())))
             .toList());
         return p;
+    }
+
+    /** A request that cannot be read (a date that is not a date, a missing parameter, broken JSON) is the caller's mistake, not ours. */
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class,
+        HttpMessageNotReadableException.class})
+    ProblemDetail unreadable(Exception e) {
+        return problem(HttpStatus.BAD_REQUEST, "bad_request", "The request could not be understood. Check the values you sent.");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
