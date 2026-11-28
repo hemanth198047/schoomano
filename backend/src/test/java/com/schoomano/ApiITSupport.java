@@ -17,7 +17,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * Shared base for API tests: one PostgreSQL 16 container per test run (RLS on, unprivileged app role),
  * migrated with Flyway and loaded with the synthetic seeds. Requires Docker. Run from backend/: mvn verify
  */
-@SpringBootTest(properties = {"schoomano.auth.dev-mode=true", "schoomano.notices.dispatcher=false", "schoomano.webhooks.dispatcher=false", "schoomano.workflow.nudger=false", "schoomano.imports.purger=false", "schoomano.secrets.key=c2Nob29tYW5vLWl0LXNlY3JldC1rZXktMzItYnl0ZXM="})
+@SpringBootTest(properties = {"schoomano.auth.dev-mode=true", "schoomano.notices.dispatcher=false", "schoomano.webhooks.dispatcher=false", "schoomano.workflow.nudger=false", "schoomano.imports.purger=false"})
 @AutoConfigureMockMvc
 abstract class ApiITSupport {
 
@@ -25,6 +25,10 @@ abstract class ApiITSupport {
         .withDatabaseName("schoomano").withUsername("schoomano_owner").withPassword("owner-test-only");
 
     static {
+        // A throwaway encryption key for this test run only, made here so no key value is kept in the source.
+        byte[] testKey = new byte[32];
+        new java.security.SecureRandom().nextBytes(testKey);
+        System.setProperty("schoomano.secrets.key", java.util.Base64.getEncoder().encodeToString(testKey));
         PG.start();
         try {
             ownerSql("create role schoomano_app login password 'app-test-only'");
