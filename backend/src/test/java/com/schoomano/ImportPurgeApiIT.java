@@ -33,6 +33,7 @@ class ImportPurgeApiIT extends ApiITSupport {
 
         assertTrue(purger.runOnce(90, 7) >= 1);
         assertEquals(0, purger.runOnce(90, 7));
+        assertEquals(1, ownerCount("select count(*) from audit_event where action = 'import.purged' and actor_kind = 'SYSTEM' and resource_id = '" + BATCH + "'"));
 
         assertEquals("[]", ownerString("select file_table::text from import_batch where id = '" + BATCH + "'"));
         assertEquals(0, ownerCount("select count(*) from import_row where batch_id = '" + BATCH + "' and (incoming <> '{}'::jsonb or before_values is not null)"));

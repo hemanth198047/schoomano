@@ -47,4 +47,23 @@ do $$ begin
   exception when check_violation then null; end;
   raise notice 'P2 pass: permanent and repeatable';
 end $$;
+
+-- P3: each purge and each discard of a stale file is written to the school's audit log, by the system, without student data.
+do $$ begin
+  if (select count(*) from audit_event where action = 'import.purged' and actor_kind = 'SYSTEM' and outcome = 'SUCCESS'
+        and resource_id in ('1d000000-0000-4000-8000-000000000001', '1d000000-0000-4000-8000-000000000003', '1d000000-0000-4000-8000-000000000005')) <> 3 then
+    raise exception 'P3 failed: purges not audited'; end if;
+  if (select count(*) from audit_event where action = 'import.discarded' and actor_kind = 'SYSTEM' and resource_id = '1d000000-0000-4000-8000-000000000003') <> 1 then
+    raise exception 'P3 failed: discard of the stale file not audited'; end if;
+  if exists (select 1 from audit_event where action like 'import.%' and resource_id in ('1d000000-0000-4000-8000-000000000002', '1d000000-0000-4000-8000-000000000004')) then
+    raise exception 'P3 failed: a live import was audited'; end if;
+  if (select details->>'rows' from audit_event where action = 'import.purged' and resource_id = '1d000000-0000-4000-8000-000000000001') <> '1'
+     or (select details->>'status' from audit_event where action = 'import.purged' and resource_id = '1d000000-0000-4000-8000-000000000001') <> 'COMMITTED' then
+    raise exception 'P3 failed: details'; end if;
+  if exists (select 1 from audit_event where action in ('import.purged', 'import.discarded') and (details::text ilike '%Asha%' or reason ilike '%Asha%')) then
+    raise exception 'P3 failed: student data in the audit log'; end if;
+  if (select count(*) from audit_event where action = 'import.purged' and resource_id = '1d000000-0000-4000-8000-000000000001') <> 1 then
+    raise exception 'P3 failed: audited twice'; end if;
+  raise notice 'P3 pass: purges are audited';
+end $$;
 rollback;
