@@ -113,6 +113,19 @@ beforeEach(() => {
       };
     if (url.endsWith('/students/s1')) return { body: anaya };
     if (url.endsWith('/guardian-relationships/r1') && init.method === 'PATCH') return { body: anaya };
+    if (url.endsWith('/guardians/g1/sessions'))
+      return {
+        body: [
+          {
+            id: 'x1',
+            deviceLabel: 'Redmi 9',
+            signedInAt: '2026-11-20T10:00:00Z',
+            lastSeenAt: '2026-11-27T10:00:00Z',
+          },
+        ],
+      };
+    if (url.endsWith('/guardians/g1/sessions/revoke') && init.method === 'POST')
+      return { body: { revoked: 1 } };
     return { status: 404, body: { code: 'not_found', detail: 'no route' } };
   });
 });
@@ -190,11 +203,29 @@ describe('Students', () => {
     });
   });
 
+  it('shows where a guardian is signed in and ends every session with a reason', async () => {
+    profile(admin);
+    await userEvent.click(await screen.findByText('Signed-in devices for Meera Rao'));
+    expect(await screen.findByText('Redmi 9')).toBeInTheDocument();
+    expect(calls.some((c) => c.url.endsWith('/guardians/g1/sessions/revoke'))).toBe(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Sign Meera Rao out everywhere' }));
+    expect(screen.getByLabelText(/Reason for signing Meera Rao out/)).toHaveAccessibleDescription(
+      /at least 10 characters/,
+    );
+    expect(calls.some((c) => c.url.endsWith('/revoke'))).toBe(false);
+    await userEvent.type(screen.getByLabelText(/Reason for signing Meera Rao out/), 'Phone was lost');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign Meera Rao out everywhere' }));
+    const post = calls.find((c) => c.url.endsWith('/guardians/g1/sessions/revoke'))!;
+    expect(JSON.parse(String(post.init.body))).toEqual({ reason: 'Phone was lost' });
+    expect(await screen.findByText('Signed out of every device.')).toBeInTheDocument();
+  });
+
   it('does not offer changes to teachers', async () => {
     profile(teacher);
     await screen.findByRole('heading', { name: 'Anaya Rao' });
     expect(screen.queryByRole('button', { name: /Change relationship/ })).toBeNull();
     expect(screen.queryByText('Add a guardian')).toBeNull();
+    expect(screen.queryByText(/Signed-in devices for/)).toBeNull();
   });
 
   it('has no automatically detectable accessibility violations', async () => {

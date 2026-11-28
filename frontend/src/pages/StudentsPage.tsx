@@ -18,7 +18,7 @@ import { Field } from '../components/Field';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { StatusBadge } from '../components/StatusBadge';
-import { formatDay } from '../lib/format';
+import { formatDateTime, formatDay } from '../lib/format';
 import { asApiError } from './AcademicManage';
 
 export const capabilityText: Record<GuardianCapability, string> = {
@@ -432,6 +432,7 @@ function GuardianCard({
           Change
         </Button>
       )}
+      {manage && g.status !== 'ENDED' && <GuardianDevices guardian={g} />}
       {editing && (
         <form className="form" onSubmit={submit} noValidate>
           <Field label="Status">
@@ -484,6 +485,93 @@ function GuardianCard({
         </form>
       )}
     </article>
+  );
+}
+
+interface DeviceSession {
+  id: string;
+  deviceLabel: string | null;
+  signedInAt: string;
+  lastSeenAt: string | null;
+}
+
+/** Where a guardian is signed in, and a way to end every session (a lost phone, or a number that changed hands). */
+function GuardianDevices({ guardian: g }: { guardian: GuardianView }) {
+  const session = useApiSession();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState<string | undefined>();
+  const [devices, reload] = useApiResource<DeviceSession[]>(
+    open ? `/api/v1/guardians/${g.guardianId}/sessions` : null,
+  );
+  const { busy, save, feedback } = useSave();
+
+  const end = async (e: FormEvent) => {
+    e.preventDefault();
+    if (reason.trim().length < 10) {
+      setReasonError('Give a reason of at least 10 characters. It is kept in the audit trail.');
+      return;
+    }
+    setReasonError(undefined);
+    const ok = await save(
+      () =>
+        apiRequest(session, `/api/v1/guardians/${g.guardianId}/sessions/revoke`, {
+          method: 'POST',
+          body: { reason: reason.trim() },
+        }),
+      'Signed out of every device.',
+    );
+    if (ok) {
+      setReason('');
+      reload();
+    }
+  };
+
+  return (
+    <details onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary>{`Signed-in devices for ${g.displayName}`}</summary>
+      {open && devices.status === 'loading' && <LoadingState label="Loading devices" />}
+      {open && devices.status === 'error' && <ErrorState error={devices.error} onRetry={reload} />}
+      {open && devices.status === 'ready' && (
+        <>
+          {devices.data.length === 0 ? (
+            <p className="muted">Not signed in on any device.</p>
+          ) : (
+            <ul className="plain-list">
+              {devices.data.map((d) => (
+                <li key={d.id}>
+                  {d.deviceLabel ?? 'Unnamed device'}{' '}
+                  <span className="muted">
+                    signed in {formatDateTime(d.signedInAt)}
+                    {d.lastSeenAt ? `, last seen ${formatDateTime(d.lastSeenAt)}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {feedback}
+          {devices.data.length > 0 && (
+            <form className="form" onSubmit={end} noValidate>
+              <Field
+                label={`Reason for signing ${g.displayName} out`}
+                hint="Kept in the audit trail."
+                required
+                error={reasonError}
+              >
+                {(p) => (
+                  <input {...p} value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+                )}
+              </Field>
+              <div className="form__actions">
+                <Button type="submit" variant="primary" disabled={busy}>
+                  {`Sign ${g.displayName} out everywhere`}
+                </Button>
+              </div>
+            </form>
+          )}
+        </>
+      )}
+    </details>
   );
 }
 
