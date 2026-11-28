@@ -65,7 +65,7 @@ class WebhookApiIT extends ApiITSupport {
         String secret = JsonPath.read(made, "$.secret");
         assertTrue(secret.startsWith("whsec_"));
         String stored = ownerString("select secret from webhook_endpoint where id = '" + id + "'");
-        assertTrue(stored.startsWith("v1:"), "the secret is stored encrypted");
+        assertTrue(stored.startsWith("v2:"), "the secret is stored encrypted");
         assertFalse(stored.contains(secret));
         mvc.perform(as(get("/api/v1/webhooks"), "dev-asha")).andExpect(jsonPath("$[?(@.id=='" + id + "')].secret").isEmpty())
             .andExpect(jsonPath("$[?(@.id=='" + id + "')].eventTypes[0]").value("config.published"));
