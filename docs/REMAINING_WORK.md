@@ -5,9 +5,9 @@ not part of this list. Size: S under a day, M a few days, L about a week or more
 web (mobile where useful), tests, docs, CI. The detail for each module is in its "Missing" list in `IMPLEMENTATION_STATUS.md`.
 
 ## Wave A. What a pilot school asks for in the first month
-1. **M01 office screens** (M): end a person's sessions, parents' own session list, invitations, custom roles screen.
-2. **M03 student records** (M): sibling and household screens, merge of duplicate students, documents (attachments, see item 3).
-3. **File attachments, once** (L): one upload service (size and type limits, virus-scan hook, per-school storage, access through the same policy as the record). Needed by M03, M07, M08, M10, M11, M15, M16, M24, M26. Do this before the modules that use it.
+1. **M01 office screens** (M): ~~end a person's sessions~~ (done, B58), parents' own session list, invitations, custom roles screen.
+2. **M03 student records** (M): sibling and household screens, merge of duplicate students, ~~documents~~ (done, B59).
+3. **File attachments, once** (L): student documents (B59) are the first user, with the upload rules in `UploadRules` and files stored in the database beside the record; the other modules still need their own tables and screens on the same rules. One upload service (size and type limits, virus-scan hook, per-school storage, access through the same policy as the record). Needed by M03, M07, M08, M10, M11, M15, M16, M24, M26. Do this before the modules that use it.
 4. **M06 attendance** (M): class-teacher assignment, per-period attendance, the late threshold applied automatically, guardian view of attendance, reports.
 5. **M09 report cards** (L): term weighting, comments and co-scholastic grades, rank and class average, PDF report cards, marks import, campus override of the grade scale, guardian report cards on web, teacher-to-class assignment.
 6. **M14 fees** (L): fee plans per programme, concessions, instalments, late fees, refunds and credit notes, PDF receipts, single-invoice issue on web, fee head screen, ledger export, expiry job for stale pending payments. (The payment gateway itself is outside.)
