@@ -1,3 +1,5 @@
+import { APPROVER_ROLES } from './approvals';
+
 /** Whole paise to rupees with Indian digit grouping. Never floats for money. */
 export function formatPaise(paise: number): string {
   if (!Number.isInteger(paise)) throw new Error('money must be integer paise');
@@ -14,8 +16,10 @@ export function formatPaise(paise: number): string {
 export function modeOf(me: {
   roles: { roleKey: string }[];
   children: unknown[];
-}): 'teacher' | 'parent' | 'none' {
+}): 'teacher' | 'parent' | 'approver' | 'none' {
   if (me.roles.some((r) => r.roleKey === 'teacher')) return 'teacher';
   if (me.children.length > 0) return 'parent';
+  // Someone who is both a parent and a principal gets the parent view; approvals are for staff with no child here.
+  if (me.roles.some((r) => APPROVER_ROLES.includes(r.roleKey))) return 'approver';
   return 'none';
 }

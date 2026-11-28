@@ -53,10 +53,11 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B34** (done, verified in CI) Webhooks | M27 | B33 | Signed, retried delivery of school events to registered https endpoints; no student events until D7 |
 | **B35** (done, verified in CI) Approval reminders and escalation | M26 | B25, B30 | A request waiting 24 hours reminds the step's holders; at 72 hours leadership and the requester are told |
 | **B36** (done, verified in CI) Idempotency keys | M27, B6 | B33 | A repeated write with the same Idempotency-Key returns the first answer and does the work once |
-| **B55** (done) Approvers must hold the role for the campus | M26 | B25 | Trigger on decisions; SQL test mutation-checked |
-| **B54** (done) Tell the school when support first signs in | M30 | B10, B45 | first_used_at on the grant; Security notice to principals and group admins; integration test |
-| **B53** (done) Relationship column in the student import | M29 | B38 | Grandparent, other, mother, father, guardian; unit tests |
-| **B52** (done) Check an audit export on its own | M30 | B43 | Export carries what each hash covers; Node verifier; fixture tests; CI end-to-end |
+| **B56** (done) Approvals on the phone | M26 | B25 | Approver mode in the mobile app: inbox across campuses, approve or reject; core tests |
+| **B55** (done, verified in CI) Approvers must hold the role for the campus | M26 | B25 | Trigger on decisions; SQL test mutation-checked |
+| **B54** (done, verified in CI) Tell the school when support first signs in | M30 | B10, B45 | first_used_at on the grant; Security notice to principals and group admins; integration test |
+| **B53** (done, verified in CI) Relationship column in the student import | M29 | B38 | Grandparent, other, mother, father, guardian; unit tests |
+| **B52** (done, verified in CI) Check an audit export on its own | M30 | B43 | Export carries what each hash covers; Node verifier; fixture tests; CI end-to-end |
 | **B50** (done, verified in CI) Households for imported students | M29 | B38 | Siblings share a household; rollback removes what was added; integration test |
 | **B49** (done, verified in CI) Change the encryption key | M27 | B39 | Key labels, previous keys, re-seal at start-up, safe to repeat; tests |
 | **B48** (done, verified in CI) Emergency access from the Health page | M30 | B44 | Search, reason, duration, then read-only record; web tests |

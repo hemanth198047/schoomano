@@ -13,6 +13,7 @@ import {
   staffSignInAvailable,
 } from './src/platform/staffSignIn';
 import { deviceStore, secureTokenStore } from './src/platform/stores';
+import { Approvals } from './src/screens/Approvals';
 import { ParentHome } from './src/screens/ParentHome';
 import { SignIn } from './src/screens/SignIn';
 import { TeacherAttendance } from './src/screens/TeacherAttendance';
@@ -90,6 +91,9 @@ export default function App() {
       )}
       {phase.name === 'ready' && modeOf(phase.me) === 'parent' && (
         <ParentHome client={client} me={phase.me} onSignOut={signOut} />
+      )}
+      {phase.name === 'ready' && modeOf(phase.me) === 'approver' && (
+        <Approvals client={client} me={phase.me} onSignOut={signOut} />
       )}
       {phase.name === 'ready' && modeOf(phase.me) === 'none' && (
         <View style={{ padding: 20 }}>

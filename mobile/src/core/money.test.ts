@@ -14,6 +14,11 @@ describe('money and mode', () => {
     expect(modeOf({ roles: [{ roleKey: 'teacher' }], children: [] })).toBe('teacher');
     expect(modeOf({ roles: [], children: [{}] })).toBe('parent');
     expect(modeOf({ roles: [], children: [] })).toBe('none');
+    expect(modeOf({ roles: [{ roleKey: 'principal' }], children: [] })).toBe('approver');
+    expect(modeOf({ roles: [{ roleKey: 'principal' }], children: [{}] })).toBe('parent');
+    expect(modeOf({ roles: [{ roleKey: 'finance_officer' }, { roleKey: 'teacher' }], children: [] })).toBe(
+      'teacher',
+    );
     expect(modeOf({ roles: [{ roleKey: 'teacher' }], children: [{}] })).toBe('teacher');
   });
 });
