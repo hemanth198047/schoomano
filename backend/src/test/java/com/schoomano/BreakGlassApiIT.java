@@ -14,7 +14,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /** B44: emergency access to a restricted record is asked for with a reason, works for a short time, and is reviewed by someone else. */
 class BreakGlassApiIT extends ApiITSupport {
 
-    static final String ANAYA = "13000000-0000-4000-8000-000000000020";
+    static final String ANAYA = "13000000-0000-4000-8000-000000000021";   // not the child HealthApiIT counts audit entries for
     static final String RECORD = "/api/v1/students/" + ANAYA + "/health-record";
 
     private static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder b, String who, String body) {
