@@ -15,6 +15,8 @@ import com.schoomano.platform.AuditWriter;
 import com.schoomano.platform.Authorizer;
 import com.schoomano.platform.RequestContext;
 import com.schoomano.platform.TenantTx;
+import com.schoomano.security.IdempotencyService;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -35,6 +37,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -63,9 +66,11 @@ public class ImportController {
     private final StudentImporter importer;
     private final ObjectMapper json;
     private final Clock clock;
+    private final IdempotencyService idempotency;
 
     public ImportController(TenantTx tenantTx, AcademicAccess access, Authorizer authz, AuditWriter audit,
-                            StudentImporter importer, ObjectMapper json, Clock clock) {
+                            StudentImporter importer, ObjectMapper json, Clock clock, IdempotencyService idempotency) {
+        this.idempotency = idempotency;
         this.tenantTx = tenantTx;
         this.access = access;
         this.authz = authz;
@@ -86,9 +91,28 @@ public class ImportController {
 
     @PostMapping("/academic-years/{yearId}/imports/students")
     @ResponseStatus(HttpStatus.CREATED)
-    public BatchView validate(RequestContext ctx, @PathVariable UUID yearId, @RequestPart("file") MultipartFile file) {
+    public BatchView validate(RequestContext ctx, @PathVariable UUID yearId, @RequestPart("file") MultipartFile file,
+                              @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                              HttpServletResponse response) {
         byte[] bytes = read(file);
         String name = file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename();
+        byte[] fingerprint = concat((yearId + "\n" + name + "\n").getBytes(StandardCharsets.UTF_8), bytes);
+        IdempotencyService.Once<BatchView> once = idempotency.once(idempotencyKey, ctx.actor().personId(), ctx.tenant().value(), fingerprint,
+            BatchView.class, () -> validateNew(ctx, yearId, bytes, name));
+        if (once.replayed()) {
+            response.setHeader("Idempotent-Replay", "true");
+        }
+        return once.value();
+    }
+
+    private static byte[] concat(byte[] a, byte[] b) {
+        byte[] out = new byte[a.length + b.length];
+        System.arraycopy(a, 0, out, 0, a.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
+    }
+
+    private BatchView validateNew(RequestContext ctx, UUID yearId, byte[] bytes, String name) {
         List<List<String>> table = parse(bytes, name);
         if (table.size() > MAX_ROWS + 1) {
             throw ApiException.badRequest("too_many_rows", "Import at most " + MAX_ROWS + " rows per file.");

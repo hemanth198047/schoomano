@@ -526,8 +526,13 @@ paths:
     post:
       summary: "Check (dry run) an export of students from the old system: .csv or .xlsx, up to 5 MB and 20,000 rows. Nothing changes until commit. Requires IMPORT_MANAGE. Audited."
       operationId: validateStudentImport
+      description: >
+        May carry an `Idempotency-Key`. A repeat with the same key and the same file and year returns the first batch (header
+        `Idempotent-Replay: true`) and makes no second one; the same key with different content is 422 `idempotency_key_reused`,
+        a repeat while the first is running is 409 `request_in_progress`, and a failed upload is forgotten. The answer is kept 24 hours.
       parameters:
         - $ref: '#/components/parameters/YearId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -3560,7 +3565,7 @@ components:
       name: Idempotency-Key
       in: header
       required: false
-      description: Optional on POST, PUT, PATCH and DELETE (not on file uploads). 8 to 100 letters, digits or . _ - and colon. The first successful JSON answer is kept for 24 hours and returned again, with Idempotent-Replay true, to the same caller repeating the same request. The same key on a different request gives 422 idempotency_key_reused; a repeat while the first is still running gives 409 request_in_progress. Failed requests are not kept, so a retry with the same key runs again.
+      description: Optional on POST, PUT, PATCH and DELETE (file uploads handle it themselves: only the student import upload keeps answers). 8 to 100 letters, digits or . _ - and colon. The first successful JSON answer is kept for 24 hours and returned again, with Idempotent-Replay true, to the same caller repeating the same request. The same key on a different request gives 422 idempotency_key_reused; a repeat while the first is still running gives 409 request_in_progress. Failed requests are not kept, so a retry with the same key runs again.
       schema: { type: string, minLength: 8, maxLength: 100 }
     TenantSelector:
       name: X-Schoomano-Tenant

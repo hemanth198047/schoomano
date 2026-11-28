@@ -38,6 +38,8 @@ class WebhookTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox(k2).open(a));
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox("").open(a));
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox("c2hvcnQ="));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox("", true));
+        assertTrue(new SecretBox(k1, true).encrypting());
         SecretBox plain = new SecretBox("");
         assertEquals("whsec_abc", plain.seal("whsec_abc"));
         assertEquals("whsec_abc", box.open("whsec_abc"), "a value stored before encryption was turned on still reads");

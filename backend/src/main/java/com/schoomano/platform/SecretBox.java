@@ -4,13 +4,16 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,8 +31,21 @@ public class SecretBox {
 
     private final SecretKeySpec key;
 
-    public SecretBox(@Value("${schoomano.secrets.key:}") String base64Key) {
+    @Autowired
+    public SecretBox(@Value("${schoomano.secrets.key:}") String base64Key, Environment env) {
+        this(base64Key, Arrays.asList(env.getActiveProfiles()).contains("prod"));
+    }
+
+    public SecretBox(String base64Key) {
+        this(base64Key, false);
+    }
+
+    /** With required set (the prod profile) a missing key stops the application from starting. */
+    public SecretBox(String base64Key, boolean required) {
         if (base64Key == null || base64Key.isBlank()) {
+            if (required) {
+                throw new IllegalStateException("schoomano.secrets.key must be set with the prod profile (32 bytes, base64)");
+            }
             this.key = null;
             log.warn("schoomano.secrets.key is not set: webhook secrets are stored without encryption");
         } else {
