@@ -36,8 +36,10 @@ public class RequestContextResolver implements HandlerMethodArgumentResolver {
 
     private final TenantTx tenantTx;
     private final ActorLoader actorLoader;
+    private final SupportSignInNotifier supportNotice;
 
-    public RequestContextResolver(TenantTx tenantTx, ActorLoader actorLoader) {
+    public RequestContextResolver(TenantTx tenantTx, ActorLoader actorLoader, SupportSignInNotifier supportNotice) {
+        this.supportNotice = supportNotice;
         this.tenantTx = tenantTx;
         this.actorLoader = actorLoader;
     }
@@ -114,6 +116,7 @@ public class RequestContextResolver implements HandlerMethodArgumentResolver {
         TenantId tenant = new TenantId(g.tenantId());
         var actor = new Actor(g.id(), tenant, Actor.Kind.SUPPORT, List.of(), List.of(), List.of(),
             Optional.of(new SupportSession(tenant, g.startsAt().toInstant(), g.expiresAt().toInstant(), null)));
+        supportNotice.used(tenant, g.id());
         return new RequestContext(actor, tenant, g.slug(), g.name());
     }
 

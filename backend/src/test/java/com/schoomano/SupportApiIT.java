@@ -1,5 +1,6 @@
 package com.schoomano;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -53,12 +54,18 @@ class SupportApiIT extends ApiITSupport {
         mvc.perform(as(get("/api/v1/support/grants"), "dev-asha")).andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.id=='" + id + "')].supportUserRef").value(hasItem(ref)));
 
+        // The first use tells the school's principals and group administrators once, however much support then does.
+        String toldSql = "select count(*) from notice where kind = 'SECURITY' and title = 'Support has signed in' and body like '" + ref + " from platform support%'";
+        long told = ownerCount(toldSql);
         // With the grant support can see operational health and the audit trail, and it says it is support.
         mvc.perform(asSupport(get("/api/v1/operations/health"), helper)).andExpect(status().isOk())
             .andExpect(jsonPath("$.supportAccessLive").value(greaterThan(0))).andExpect(jsonPath("$.checks", hasSize(7)));
         mvc.perform(asSupport(get("/api/v1/me"), helper)).andExpect(status().isOk())
             .andExpect(jsonPath("$.displayName").value("Platform support")).andExpect(jsonPath("$.roles", hasSize(0)));
         mvc.perform(asSupport(get("/api/v1/audit?limit=5"), helper)).andExpect(status().isOk());
+        assertEquals(told + 1, ownerCount(toldSql));
+        assertEquals(1, ownerCount("select count(*) from notice_delivery d join notice n on n.id = d.notice_id where n.title = 'Support has signed in' and n.body like '"
+            + ref + " from platform support%' and d.channel = 'IN_APP' and d.recipient_person_id = '13000000-0000-4000-8000-000000000001'"), "the group administrator has it in the inbox");
         // The grant does not reach other schools, and does not work without naming one.
         mvc.perform(as(get("/api/v1/operations/health"), helper)).andExpect(status().isForbidden());
         mvc.perform(as(get("/api/v1/operations/health"), helper).header("X-Schoomano-Tenant", "other-group")).andExpect(status().isForbidden());
