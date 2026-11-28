@@ -11,12 +11,37 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** B34: the signature, the address rules and one real post to a local receiver. */
 class WebhookTest {
+
+    @Test
+    void duringRotationBothSecretsSignAndTheNewOneComesFirst() {
+        String both = WebhookSigner.header(List.of("whsec_new", "whsec_test"), 1700000000L, "{\"a\":1}");
+        assertEquals(WebhookSigner.header("whsec_new", 1700000000L, "{\"a\":1}") + ",v1=38877139021993b830af32feea6e18a8da83eb2f6e49ee50bd9e4cf4ca4d3789", both);
+    }
+
+    @Test
+    void secretsAreSealedWithAFreshNonceAndOnlyOpenWithTheirKey() {
+        String k1 = java.util.Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes(StandardCharsets.UTF_8));
+        String k2 = java.util.Base64.getEncoder().encodeToString("fedcba9876543210fedcba9876543210".getBytes(StandardCharsets.UTF_8));
+        SecretBox box = new SecretBox(k1);
+        String a = box.seal("whsec_abc");
+        assertTrue(a.startsWith("v1:"));
+        assertFalse(a.contains("whsec_abc"));
+        assertFalse(a.equals(box.seal("whsec_abc")), "a new nonce every time");
+        assertEquals("whsec_abc", box.open(a));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox(k2).open(a));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox("").open(a));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> new SecretBox("c2hvcnQ="));
+        SecretBox plain = new SecretBox("");
+        assertEquals("whsec_abc", plain.seal("whsec_abc"));
+        assertEquals("whsec_abc", box.open("whsec_abc"), "a value stored before encryption was turned on still reads");
+    }
 
     @Test
     void signatureIsHmacOverTimestampAndBody() {
@@ -66,8 +91,8 @@ class WebhookTest {
         server.start();
         try {
             String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/hook";
-            WebhookDispatcher local = new WebhookDispatcher(null, new ObjectMapper(), false, true);
-            WebhookDispatcher.Outcome ok = local.post(url, "whsec_test", UUID.randomUUID(), "config.published", "{\"a\":1}");
+            WebhookDispatcher local = new WebhookDispatcher(null, new SecretBox(""), new ObjectMapper(), false, true);
+            WebhookDispatcher.Outcome ok = local.post(url, List.of("whsec_test"), UUID.randomUUID(), "config.published", "{\"a\":1}");
             assertEquals(204, ok.status());
             assertNull(ok.error());
             assertEquals("config.published", event.get());
@@ -76,12 +101,12 @@ class WebhookTest {
             assertEquals(WebhookSigner.header("whsec_test", t, "{\"a\":1}"), signature.get());
 
             reply[0] = 500;
-            WebhookDispatcher.Outcome bad = local.post(url, "whsec_test", UUID.randomUUID(), "config.published", "{}");
+            WebhookDispatcher.Outcome bad = local.post(url, List.of("whsec_test"), UUID.randomUUID(), "config.published", "{}");
             assertEquals(500, bad.status());
             assertEquals("http_500", bad.error());
 
-            WebhookDispatcher strict = new WebhookDispatcher(null, new ObjectMapper(), false, false);
-            assertEquals("address_not_public", strict.post(url, "whsec_test", UUID.randomUUID(), "config.published", "{}").error());
+            WebhookDispatcher strict = new WebhookDispatcher(null, new SecretBox(""), new ObjectMapper(), false, false);
+            assertEquals("address_not_public", strict.post(url, List.of("whsec_test"), UUID.randomUUID(), "config.published", "{}").error());
         } finally {
             server.stop(0);
         }

@@ -210,6 +210,22 @@ function Webhooks() {
     }
   }
 
+  async function replaceSecret(h: Webhook) {
+    setError(null);
+    setNote(null);
+    try {
+      setSecret(
+        await apiRequest<WebhookIssued>(session, `/api/v1/webhooks/${h.id}/rotate-secret`, {
+          method: 'POST',
+          body: {},
+        }),
+      );
+      reload();
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+
   async function act(h: Webhook, what: 'disable' | 'ping') {
     setError(null);
     setNote(null);
@@ -235,6 +251,13 @@ function Webhooks() {
             <p>
               Copy the signing secret for <strong>{secret.endpoint.name}</strong> now. It is not shown again.
             </p>
+            {secret.endpoint.oldSecretValidUntil && (
+              <p>
+                The old secret keeps working until {formatDateTime(secret.endpoint.oldSecretValidUntil)}.
+                Until then each message carries a signature for both, so you can change over without missing
+                anything.
+              </p>
+            )}
             <p>
               <code>{secret.secret}</code>
             </p>
@@ -262,6 +285,14 @@ function Webhooks() {
                     {h.eventTypes.map((t) => EVENT_LABELS[t] ?? t).join(', ')}
                     {!h.active && h.disabledReason ? `. ${h.disabledReason}` : ''}
                   </p>
+                  {h.secretRotatedAt && (
+                    <p className="muted">
+                      Secret replaced {formatDateTime(h.secretRotatedAt)}
+                      {h.oldSecretValidUntil
+                        ? `. The old one works until ${formatDateTime(h.oldSecretValidUntil)}`
+                        : ''}
+                    </p>
+                  )}
                   <div className="form form--inline">
                     {h.active && (
                       <>
@@ -269,6 +300,10 @@ function Webhooks() {
                           variant="quiet"
                           onClick={() => void act(h, 'ping')}
                         >{`Send test to ${h.name}`}</Button>
+                        <Button
+                          variant="quiet"
+                          onClick={() => void replaceSecret(h)}
+                        >{`Replace secret of ${h.name}`}</Button>
                         <Button
                           variant="quiet"
                           onClick={() => void act(h, 'disable')}

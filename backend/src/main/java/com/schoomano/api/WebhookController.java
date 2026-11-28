@@ -7,6 +7,7 @@ import com.schoomano.platform.ApiException;
 import com.schoomano.platform.AuditWriter;
 import com.schoomano.platform.Authorizer;
 import com.schoomano.platform.RequestContext;
+import com.schoomano.platform.SecretBox;
 import com.schoomano.platform.TenantTx;
 import com.schoomano.platform.WebhookUrls;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,8 +52,10 @@ public class WebhookController {
     private final TenantTx tenantTx;
     private final Authorizer authz;
     private final AuditWriter audit;
+    private final SecretBox box;
 
-    public WebhookController(TenantTx tenantTx, Authorizer authz, AuditWriter audit) {
+    public WebhookController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, SecretBox box) {
+        this.box = box;
         this.tenantTx = tenantTx;
         this.authz = authz;
         this.audit = audit;
@@ -61,7 +65,8 @@ public class WebhookController {
                                  @NotEmpty @Size(max = 20) List<String> eventTypes) { }
 
     public record EndpointView(UUID id, String name, String url, List<String> eventTypes, boolean active, int failures,
-                               OffsetDateTime createdAt, OffsetDateTime disabledAt, String disabledReason) { }
+                               OffsetDateTime createdAt, OffsetDateTime disabledAt, String disabledReason,
+                               OffsetDateTime secretRotatedAt, OffsetDateTime oldSecretValidUntil) { }
 
     /** The only response that carries the signing secret. */
     public record EndpointIssued(EndpointView endpoint, String secret) { }
@@ -100,17 +105,45 @@ public class WebhookController {
         }
         return tenantTx.run(ctx.tenant(), jdbc -> {
             require(jdbc, ctx);
-            byte[] raw = new byte[32];
-            RANDOM.nextBytes(raw);
-            String secret = "whsec_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+            String secret = newSecret();
             UUID id = jdbc.queryForObject("""
                 insert into webhook_endpoint (tenant_id, name, url, secret, event_types, created_by)
                 values (?, ?, ?, ?, ?::text[], ?) returning id
-                """, UUID.class, ctx.tenant().value(), req.name().trim(), req.url().trim(), secret,
+                """, UUID.class, ctx.tenant().value(), req.name().trim(), req.url().trim(), box.seal(secret),
                 "{" + String.join(",", types) + "}", ctx.actor().personId());
             audit.write(jdbc, ctx, "webhook.created", "webhook_endpoint", id.toString(), "SUCCESS", null, Map.of("eventTypes", types.size()));
             return new EndpointIssued(endpoints(jdbc, "e.id = ?", id).get(0), secret);
         });
+    }
+
+    /**
+     * Replaces the signing secret. The old one keeps signing alongside the new for the grace period (default 24 hours,
+     * at most 7 days) so the receiver can change over without losing events. The new secret is shown once.
+     */
+    @PostMapping("/webhooks/{id}/rotate-secret")
+    public EndpointIssued rotate(RequestContext ctx, @PathVariable UUID id, @RequestParam(defaultValue = "24") int graceHours) {
+        if (graceHours < 0 || graceHours > 168) {
+            throw ApiException.badRequest("bad_grace", "The old secret can stay valid for 0 to 168 hours.");
+        }
+        return tenantTx.run(ctx.tenant(), jdbc -> {
+            require(jdbc, ctx);
+            if (endpoints(jdbc, "e.id = ?", id).isEmpty()) {
+                throw ApiException.notFound();
+            }
+            String secret = newSecret();
+            if (!Boolean.TRUE.equals(jdbc.queryForObject("select webhook_rotate(?, ?, make_interval(hours => ?))", Boolean.class,
+                    id, box.seal(secret), graceHours))) {
+                throw new ApiException(HttpStatus.CONFLICT, "endpoint_off", "A switched-off endpoint cannot have its secret replaced.");
+            }
+            audit.write(jdbc, ctx, "webhook.secret_rotated", "webhook_endpoint", id.toString(), "SUCCESS", null, Map.of("graceHours", graceHours));
+            return new EndpointIssued(endpoints(jdbc, "e.id = ?", id).get(0), secret);
+        });
+    }
+
+    private static String newSecret() {
+        byte[] raw = new byte[32];
+        RANDOM.nextBytes(raw);
+        return "whsec_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
     }
 
     @PostMapping("/webhooks/{id}/disable")
@@ -163,12 +196,14 @@ public class WebhookController {
 
     private List<EndpointView> endpoints(JdbcTemplate jdbc, String where, Object... args) {
         return jdbc.query("""
-            select e.id, e.name, e.url, e.event_types, e.active, e.consecutive_failures, e.created_at, e.disabled_at, e.disabled_reason
+            select e.id, e.name, e.url, e.event_types, e.active, e.consecutive_failures, e.created_at, e.disabled_at, e.disabled_reason,
+                   e.secret_rotated_at, case when e.previous_secret_expires_at > now() then e.previous_secret_expires_at end
               from webhook_endpoint e where """ + " " + where + " order by e.created_at desc limit 100",
             (rs, i) -> {
                 Array types = rs.getArray(4);
                 return new EndpointView(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), List.of((String[]) types.getArray()),
-                    rs.getBoolean(5), rs.getInt(6), rs.getObject(7, OffsetDateTime.class), rs.getObject(8, OffsetDateTime.class), rs.getString(9));
+                    rs.getBoolean(5), rs.getInt(6), rs.getObject(7, OffsetDateTime.class), rs.getObject(8, OffsetDateTime.class), rs.getString(9),
+                    rs.getObject(10, OffsetDateTime.class), rs.getObject(11, OffsetDateTime.class));
             }, args);
     }
 }

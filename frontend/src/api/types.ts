@@ -1026,6 +1026,8 @@ export interface Webhook {
   createdAt: string;
   disabledAt: string | null;
   disabledReason: string | null;
+  secretRotatedAt?: string | null;
+  oldSecretValidUntil?: string | null;
 }
 
 export interface WebhookIssued {

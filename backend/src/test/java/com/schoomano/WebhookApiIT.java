@@ -1,6 +1,8 @@
 package com.schoomano;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -62,7 +64,9 @@ class WebhookApiIT extends ApiITSupport {
         String id = JsonPath.read(made, "$.endpoint.id");
         String secret = JsonPath.read(made, "$.secret");
         assertTrue(secret.startsWith("whsec_"));
-        assertEquals(secret, ownerString("select secret from webhook_endpoint where id = '" + id + "'"));
+        String stored = ownerString("select secret from webhook_endpoint where id = '" + id + "'");
+        assertTrue(stored.startsWith("v1:"), "the secret is stored encrypted");
+        assertFalse(stored.contains(secret));
         mvc.perform(as(get("/api/v1/webhooks"), "dev-asha")).andExpect(jsonPath("$[?(@.id=='" + id + "')].secret").isEmpty())
             .andExpect(jsonPath("$[?(@.id=='" + id + "')].eventTypes[0]").value("config.published"));
 
@@ -82,10 +86,28 @@ class WebhookApiIT extends ApiITSupport {
         mvc.perform(as(get("/api/v1/webhooks/" + id + "/deliveries"), "dev-asha")).andExpect(jsonPath("$.length()").value(2))
             .andExpect(jsonPath("$[?(@.eventType=='webhook.ping')]").isNotEmpty());
 
+        // Replacing the secret: only an administrator, the new one is shown once, the old one stays valid for a while.
+        mvc.perform(json(post("/api/v1/webhooks/" + id + "/rotate-secret"), "dev-wh-d61", "{}")).andExpect(status().isNotFound());
+        mvc.perform(json(post("/api/v1/webhooks/" + id + "/rotate-secret"), "dev-other", "{}")).andExpect(status().isNotFound());
+        mvc.perform(json(post("/api/v1/webhooks/" + id + "/rotate-secret?graceHours=500"), "dev-asha", "{}")).andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("bad_grace"));
+        String rotated = mvc.perform(json(post("/api/v1/webhooks/" + id + "/rotate-secret"), "dev-asha", "{}")).andExpect(status().isOk())
+            .andExpect(jsonPath("$.endpoint.oldSecretValidUntil").isNotEmpty()).andExpect(jsonPath("$.endpoint.secretRotatedAt").isNotEmpty())
+            .andReturn().getResponse().getContentAsString();
+        String fresh = JsonPath.read(rotated, "$.secret");
+        assertTrue(fresh.startsWith("whsec_"));
+        assertNotEquals(secret, fresh);
+        assertEquals(stored, ownerString("select previous_secret from webhook_endpoint where id = '" + id + "'"));
+        assertNotEquals(stored, ownerString("select secret from webhook_endpoint where id = '" + id + "'"));
+        mvc.perform(as(get("/api/v1/webhooks"), "dev-asha")).andExpect(jsonPath("$[?(@.id=='" + id + "')].secret").isEmpty())
+            .andExpect(jsonPath("$[?(@.id=='" + id + "')].previousSecret").isEmpty());
+        assertEquals(1, ownerCount("select count(*) from audit_event where action = 'webhook.secret_rotated' and resource_id = '" + id + "'"));
+
         // Switching off stops new deliveries and pings, once.
         mvc.perform(json(post("/api/v1/webhooks/" + id + "/disable"), "dev-wh-d61", "{}")).andExpect(status().isNotFound());
         mvc.perform(json(post("/api/v1/webhooks/" + id + "/disable"), "dev-asha", "{}")).andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));
         mvc.perform(json(post("/api/v1/webhooks/" + id + "/disable"), "dev-asha", "{}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("already_off"));
+        mvc.perform(json(post("/api/v1/webhooks/" + id + "/rotate-secret"), "dev-asha", "{}")).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("endpoint_off"));
         mvc.perform(json(post("/api/v1/webhooks/" + id + "/ping"), "dev-asha", "{}")).andExpect(status().isNotFound());
         assertEquals(1, ownerCount("select count(*) from audit_event where action = 'webhook.created' and resource_id = '" + id + "'"));
         assertEquals(1, ownerCount("select count(*) from audit_event where action = 'webhook.disabled' and resource_id = '" + id + "'"));

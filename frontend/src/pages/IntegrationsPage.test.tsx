@@ -41,6 +41,17 @@ const hook = {
 const server = (url: string, init: { method?: string }) => {
   if (url.endsWith('/webhooks/event-types')) return { body: ['config.published', 'import.committed'] };
   if (url.endsWith('/webhooks/w1/ping')) return { status: 202, body: { deliveryId: 'x' } };
+  if (url.endsWith('/webhooks/w1/rotate-secret'))
+    return {
+      body: {
+        endpoint: {
+          ...hook,
+          secretRotatedAt: '2026-11-03T04:30:00Z',
+          oldSecretValidUntil: '2026-11-04T04:30:00Z',
+        },
+        secret: 'whsec_replacement',
+      },
+    };
   if (url.endsWith('/webhooks/w1/disable')) return { body: { ...hook, active: false } };
   if (url.endsWith('/webhooks/w1/deliveries'))
     return {
@@ -134,6 +145,13 @@ describe('IntegrationsPage', () => {
     expect(screen.queryByText('whsec_secretvalue')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Send test to Library system' }));
     expect(calls.some((c) => c.url.endsWith('/webhooks/w1/ping'))).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Replace secret of Library system' }));
+    expect(await screen.findByText('whsec_replacement')).toBeInTheDocument();
+    expect(screen.getByText(/The old secret keeps working until/)).toBeInTheDocument();
+    expect(calls.some((c) => c.url.endsWith('/webhooks/w1/rotate-secret') && c.init.method === 'POST')).toBe(
+      true,
+    );
+    await user.click(screen.getByRole('button', { name: 'I have copied the secret' }));
     await user.click(screen.getByRole('button', { name: 'Deliveries of Library system' }));
     expect(await screen.findByText('SENT')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Switch off Library system' }));

@@ -3359,6 +3359,22 @@ paths:
         '200': { description: Switched off, content: { application/json: { schema: { $ref: '#/components/schemas/Webhook' } } } }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { description: already_off, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /api/v1/webhooks/{id}/rotate-secret:
+    post:
+      tags: [Integrations]
+      summary: Replace the signing secret (WEBHOOK_MANAGE)
+      description: >
+        Issues a new secret, shown once. The old secret keeps signing alongside the new for graceHours (default 24, at most 168),
+        so every post in that time carries two v1 values in X-Schoomano-Signature (new first) and the receiver may check either.
+        A switched-off endpoint cannot be rotated.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: graceHours, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 168, default: 24 } }
+      responses:
+        '200': { description: Replaced, content: { application/json: { schema: { $ref: '#/components/schemas/WebhookIssued' } } } }
+        '400': { description: bad_grace, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { description: endpoint_off, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
   /api/v1/webhooks/{id}/ping:
     post:
       tags: [Integrations]
@@ -3603,6 +3619,8 @@ components:
         createdAt: { type: string, format: date-time }
         disabledAt: { type: [string, 'null'], format: date-time }
         disabledReason: { type: [string, 'null'] }
+        secretRotatedAt: { type: [string, 'null'], format: date-time }
+        oldSecretValidUntil: { type: [string, 'null'], format: date-time, description: Set only while the previous secret still signs }
     WebhookIssued:
       type: object
       properties:

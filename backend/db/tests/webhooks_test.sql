@@ -80,4 +80,37 @@ do $$ begin
   if (select count(*) from webhook_endpoint) <> 0 or (select count(*) from webhook_delivery) <> 0 then raise exception 'W3 failed: another school sees endpoints'; end if;
   raise notice 'W3b pass: tenants are isolated';
 end $$;
+
+-- W4: replacing a secret keeps the old one for the grace period only, for the caller's own live endpoints only.
+reset role;
+select set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+insert into webhook_delivery (id, tenant_id, endpoint_id, outbox_event_id) values
+  ('1d000000-0000-4000-8000-0000000000f1', '10000000-0000-4000-8000-000000000001', '1f000000-0000-4000-8000-0000000000d1', '1e100000-0000-4000-8000-0000000000e1');
+do $$ declare d uuid := '1d000000-0000-4000-8000-0000000000f1'; prev text; begin
+  if not webhook_rotate('1f000000-0000-4000-8000-0000000000d1', 'whsec_d2', interval '24 hours') then raise exception 'W4 failed: rotation refused'; end if;
+  select previous_secret into prev from webhook_claim_due(100) where delivery_id = d;
+  if prev is distinct from 'whsec_d' then raise exception 'W4 failed: old secret not offered during the grace period (%)', prev; end if;
+  if (select secret from webhook_claim_due(100) where delivery_id = d) is not null then raise exception 'W4 failed: claimed again while leased'; end if;
+  update webhook_delivery set next_attempt_at = now() where id = d;
+  if (select secret from webhook_claim_due(100) where delivery_id = d) <> 'whsec_d2' then raise exception 'W4 failed: new secret not used'; end if;
+  perform webhook_rotate('1f000000-0000-4000-8000-0000000000d1', 'whsec_d3', interval '0');
+  update webhook_delivery set next_attempt_at = now() where id = d;
+  if (select previous_secret from webhook_claim_due(100) where delivery_id = d) is not null then raise exception 'W4 failed: expired secret still offered'; end if;
+  if webhook_rotate('1f000000-0000-4000-8000-0000000000d1', 'x', interval '8 days') then raise exception 'W4 failed: grace over a week accepted'; end if;
+  if webhook_rotate('1f000000-0000-4000-8000-0000000000d1', 'x', interval '-1 hour') then raise exception 'W4 failed: negative grace accepted'; end if;
+  if webhook_rotate('1f000000-0000-4000-8000-0000000000c1', 'x', interval '1 hour') then raise exception 'W4 failed: switched-off endpoint rotated'; end if;
+  perform set_config('app.tenant_id', '10000000-0000-4000-8000-000000000002', true);
+  if webhook_rotate('1f000000-0000-4000-8000-0000000000d1', 'x', interval '1 hour') then raise exception 'W4 failed: another school''s endpoint rotated'; end if;
+  perform set_config('app.tenant_id', '10000000-0000-4000-8000-000000000001', true);
+  execute 'set local role schoomano_app';
+  begin
+    perform previous_secret from webhook_endpoint;
+    raise exception 'W4 failed: the application can read old secrets';
+  exception when insufficient_privilege then null; end;
+  begin
+    update webhook_endpoint set secret = 'mine' where id = '1f000000-0000-4000-8000-0000000000d1';
+    raise exception 'W4 failed: the application can write secrets directly';
+  exception when insufficient_privilege then null; end;
+  raise notice 'W4 pass: rotation and grace period';
+end $$;
 rollback;
