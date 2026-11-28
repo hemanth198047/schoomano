@@ -55,7 +55,7 @@ class SupportApiIT extends ApiITSupport {
 
         // With the grant support can see operational health and the audit trail, and it says it is support.
         mvc.perform(asSupport(get("/api/v1/operations/health"), helper)).andExpect(status().isOk())
-            .andExpect(jsonPath("$.supportAccessLive").value(greaterThan(0))).andExpect(jsonPath("$.checks", hasSize(6)));
+            .andExpect(jsonPath("$.supportAccessLive").value(greaterThan(0))).andExpect(jsonPath("$.checks", hasSize(7)));
         mvc.perform(asSupport(get("/api/v1/me"), helper)).andExpect(status().isOk())
             .andExpect(jsonPath("$.displayName").value("Platform support")).andExpect(jsonPath("$.roles", hasSize(0)));
         mvc.perform(asSupport(get("/api/v1/audit?limit=5"), helper)).andExpect(status().isOk());
