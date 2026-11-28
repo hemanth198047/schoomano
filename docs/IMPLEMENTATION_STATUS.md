@@ -108,7 +108,7 @@ Nothing below claims production readiness. No module has been used by a real sch
 
 Everything listed as implemented has been built and has passed its tests in CI. Nothing has been used by a real school. The list below is what still stands between this and a school running on it. It is grouped by what is needed, because the first group cannot be solved by writing more code.
 
-**1. Needs people, devices or approvals outside this repository**
+**1. Needs people, devices or approvals outside this repository** (with the wait, who and what to prepare for each: `PILOT_READINESS.md`)
 - A real phone test of the mobile app (cold start under 3 s on a 2 GB phone, 30-minute offline periods, encrypted offline store, push notifications, Hindi strings, store builds). ADR 0005 stays Proposed until then.
 - A real SMS provider for parent sign-in and notices: TRAI DLT sender and template approval, which can take weeks.
 - Staff sign-in through a real OIDC provider that reports the second factor, tried end to end.
@@ -119,9 +119,9 @@ Everything listed as implemented has been built and has passed its tests in CI. 
 **2. Gaps inside modules already started (each module's Missing list above has the detail)**
 - M01: office screen for ending sessions, parents' own session list, invitations, custom roles screen.
 - M27 and M29: moving the older per-feature keys onto the common filter (attendance sync keeps its own).
-- M30: support-staff identity management, alerts outside the app and dashboards, emergency-access requests for safeguarding records from the screen, audit retention and archiving.
+- M30: support-staff identity management, alerts outside the app and dashboards, emergency-access requests for safeguarding records from the screen, audit retention and archiving (a design waiting for D7 is in `AUDIT_RETENTION.md`).
 - M03, M07, M08, M09, M13, M14: documents, more curriculum and learning tools, targeting notices by household or programme, a real payment gateway, and the other items in their rows.
-- M26: triggers and automations, routing by amount or condition, parallel approvals, delegation, repeating reminders, a mobile screen.
+- M26: triggers and automations, routing by amount or condition, parallel approvals, delegation, repeating reminders.
 - Spring Boot 3.5 to 4.0 upgrade (ADR 0001), and Hindi and State-language strings that need native review.
 - Mobile screens for the staff features that are web only today.
 
