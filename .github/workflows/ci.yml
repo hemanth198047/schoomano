@@ -84,6 +84,7 @@ jobs:
           $P -f backend/db/tests/compliance_test.sql
           $P -f backend/db/tests/workflow_test.sql
           $P -f backend/db/tests/workflow_scope_test.sql
+          $P -f backend/db/tests/class_teacher_test.sql
           $P -f backend/db/tests/student_document_test.sql
           $P -f backend/db/tests/purchase_workflow_test.sql
           $P -f backend/db/tests/leave_workflow_test.sql

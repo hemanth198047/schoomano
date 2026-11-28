@@ -58,15 +58,17 @@ public class AttendanceController {
     private final AcademicAccess access;
     private final ObjectMapper json;
     private final Clock clock;
+    private final ClassTeacherRule classTeachers;
 
     public AttendanceController(TenantTx tenantTx, Authorizer authz, AuditWriter audit, AcademicAccess access,
-                                ObjectMapper json, Clock clock) {
+                                ObjectMapper json, Clock clock, ClassTeacherRule classTeachers) {
         this.tenantTx = tenantTx;
         this.authz = authz;
         this.audit = audit;
         this.access = access;
         this.json = json;
         this.clock = clock;
+        this.classTeachers = classTeachers;
     }
 
     public record RosterRow(UUID studentId, String schoolRef, String name, String status, Integer version) { }
@@ -147,6 +149,7 @@ public class AttendanceController {
             ScopePath path = sectionPath(jdbc, ctx, sectionId);
             authz.requireOrNotFound(jdbc, ctx, Permission.ATTENDANCE_READ, Resource.ordinary("attendance", sectionId, path, null));
             authz.requireOrForbidden(jdbc, ctx, Permission.ATTENDANCE_MARK, Resource.ordinary("attendance", sectionId, path, null));
+            classTeachers.requireMayMark(jdbc, ctx, sectionId);
 
             var previous = jdbc.query("select request_hash, response::text from attendance_submission where idempotency_key = ?",
                 (rs, i) -> new String[] {rs.getString(1), rs.getString(2)}, key).stream().findFirst();
