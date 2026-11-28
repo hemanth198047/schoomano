@@ -112,4 +112,32 @@ class WebhookApiIT extends ApiITSupport {
         assertEquals(1, ownerCount("select count(*) from audit_event where action = 'webhook.created' and resource_id = '" + id + "'"));
         assertEquals(1, ownerCount("select count(*) from audit_event where action = 'webhook.disabled' and resource_id = '" + id + "'"));
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    com.schoomano.platform.SecretRekeyer rekeyer;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    com.schoomano.platform.SecretBox box;
+
+    @Test
+    void changingTheKeyReSealsStoredSecretsAndIsSafeToRepeat() throws Exception {
+        String res = mvc.perform(json(post("/api/v1/webhooks"), "dev-asha",
+                "{\"name\":\"Rekey\",\"url\":\"https://hooks.example.com/rekey\",\"eventTypes\":[\"config.published\"]}"))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(res, "$.endpoint.id");
+        // A value stored before encryption was switched on, and a previous secret in the same state.
+        ownerUpdate("update webhook_endpoint set secret = 'whsec_plain', previous_secret = 'whsec_plain_old' where id = '" + id + "'");
+        var first = rekeyer.rekey();
+        assertTrue(first.resealed() >= 1);
+        String stored = ownerString("select secret from webhook_endpoint where id = '" + id + "'");
+        assertTrue(stored.startsWith("v2:"));
+        assertEquals("whsec_plain", box.open(stored));
+        assertEquals("whsec_plain_old", box.open(ownerString("select previous_secret from webhook_endpoint where id = '" + id + "'")));
+        // Again: nothing left to do, and the stored value is untouched.
+        assertEquals(0, rekeyer.rekey().resealed());
+        assertEquals(stored, ownerString("select secret from webhook_endpoint where id = '" + id + "'"));
+        // A row that changed between reading and writing is not overwritten.
+        assertEquals("f", ownerString("select webhook_secret_rekey('" + id + "', 'something else', null, 'x', null)"));
+        assertEquals(stored, ownerString("select secret from webhook_endpoint where id = '" + id + "'"));
+    }
 }

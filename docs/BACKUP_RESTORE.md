@@ -50,3 +50,11 @@ normal drill, so a drill that stopped noticing problems would fail the build.
   the data-protection review (decision D7).
 - How often the drill is run against production. Monthly is a reasonable start; record each run.
 - A restore into a different region or cloud, and a restore of one school only (the dump restores all schools together).
+
+## Changing the encryption key
+
+1. Make a new 32-byte key (`openssl rand -base64 32`) and store it in the secret manager.
+2. Set `SCHOOMANO_SECRETS_KEY` to the new key and `SCHOOMANO_SECRETS_PREVIOUS_KEYS` to the old one (several old keys are separated by commas), and `SCHOOMANO_SECRETS_REKEY=true`.
+3. Restart. The log says how many secrets were re-sealed. It is safe to run again and from several instances.
+4. Remove the old key and `SCHOOMANO_SECRETS_REKEY`, restart. Keep the old key in the secret manager until every backup older than step 3 has expired, because those backups can only be read with it.
+

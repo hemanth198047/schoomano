@@ -31,7 +31,7 @@ class WebhookTest {
         String k2 = java.util.Base64.getEncoder().encodeToString("fedcba9876543210fedcba9876543210".getBytes(StandardCharsets.UTF_8));
         SecretBox box = new SecretBox(k1);
         String a = box.seal("whsec_abc");
-        assertTrue(a.startsWith("v1:"));
+        assertTrue(a.startsWith("v2:"));
         assertFalse(a.contains("whsec_abc"));
         assertFalse(a.equals(box.seal("whsec_abc")), "a new nonce every time");
         assertEquals("whsec_abc", box.open(a));
@@ -43,6 +43,32 @@ class WebhookTest {
         SecretBox plain = new SecretBox("");
         assertEquals("whsec_abc", plain.seal("whsec_abc"));
         assertEquals("whsec_abc", box.open("whsec_abc"), "a value stored before encryption was turned on still reads");
+    }
+
+    @Test
+    void theKeyCanBeChangedWhileTheOldOneIsStillListed() {
+        java.util.function.Function<String, String> k = t -> java.util.Base64.getEncoder().encodeToString(t.getBytes(StandardCharsets.UTF_8));
+        String oldKey = k.apply("0123456789abcdef0123456789abcdef");
+        String newKey = k.apply("fedcba9876543210fedcba9876543210");
+        SecretBox before = new SecretBox(oldKey);
+        String sealed = before.seal("whsec_abc");
+        SecretBox during = new SecretBox(newKey, oldKey, false);
+        assertEquals("whsec_abc", during.open(sealed), "the old key still reads");
+        assertTrue(during.needsRekey(sealed));
+        assertTrue(during.needsRekey("whsec_plain"), "a value stored in the clear is sealed too");
+        String moved = during.seal(during.open(sealed));
+        assertFalse(during.needsRekey(moved));
+        assertEquals("whsec_abc", during.open(moved));
+        // After the old key is removed, only what was moved still reads.
+        SecretBox after = new SecretBox(newKey);
+        assertEquals("whsec_abc", after.open(moved));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> after.open(sealed));
+        // Values written in the first format (no key label) are found by trying each key.
+        String first = "v1:" + sealed.substring(sealed.indexOf(':', 3) + 1);
+        assertEquals("whsec_abc", during.open(first));
+        assertTrue(during.needsRekey(first));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> after.open(first));
+        assertFalse(new SecretBox("").needsRekey("anything"));
     }
 
     @Test
