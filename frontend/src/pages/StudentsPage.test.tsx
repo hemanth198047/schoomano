@@ -113,6 +113,24 @@ beforeEach(() => {
       };
     if (url.endsWith('/students/s1')) return { body: anaya };
     if (url.endsWith('/guardian-relationships/r1') && init.method === 'PATCH') return { body: anaya };
+    if (url.endsWith('/students/s1/documents') && init.method === 'POST')
+      return { status: 201, body: { id: 'd2' } };
+    if (url.endsWith('/students/s1/documents'))
+      return {
+        body: [
+          {
+            id: 'd1',
+            kind: 'BIRTH_CERTIFICATE',
+            fileName: 'birth.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: 2048,
+            note: 'Original seen',
+            uploadedAt: '2026-11-20T10:00:00Z',
+          },
+        ],
+      };
+    if (url.endsWith('/students/s1/documents/d1/remove') && init.method === 'POST')
+      return { body: { removed: true } };
     if (url.endsWith('/guardians/g1/sessions'))
       return {
         body: [
@@ -220,12 +238,49 @@ describe('Students', () => {
     expect(await screen.findByText('Signed out of every device.')).toBeInTheDocument();
   });
 
+  it('keeps documents for the office: lists them, adds one as a file upload, and removes one for a reason', async () => {
+    profile(admin);
+    const docs = await screen.findByRole('region', { name: 'Documents' });
+    expect(await within(docs).findByText(/birth\.pdf/)).toBeInTheDocument();
+    expect(docs).toHaveTextContent('Birth certificate');
+    expect(docs).toHaveTextContent('2 KB');
+
+    await userEvent.click(within(docs).getByText('Add a document'));
+    await userEvent.click(within(docs).getByRole('button', { name: 'Add document' }));
+    expect(within(docs).getByLabelText(/^File/)).toHaveAccessibleDescription(/Choose a PDF, PNG or JPEG/);
+    await userEvent.selectOptions(within(docs).getByLabelText('Kind'), 'ID_PROOF');
+    await userEvent.upload(
+      within(docs).getByLabelText(/^File/),
+      new File(['%PDF-1.7'], 'aadhaar.pdf', { type: 'application/pdf' }),
+    );
+    await userEvent.click(within(docs).getByRole('button', { name: 'Add document' }));
+    const post = calls.find((c) => c.url.endsWith('/students/s1/documents') && c.init.method === 'POST')!;
+    expect(post.init.body).toBeInstanceOf(FormData);
+    expect((post.init.body as FormData).get('kind')).toBe('ID_PROOF');
+    expect(((post.init.body as FormData).get('file') as File).name).toBe('aadhaar.pdf');
+    expect(await within(docs).findByText('Document added.')).toBeInTheDocument();
+
+    await userEvent.click(within(docs).getByRole('button', { name: 'Remove birth.pdf' }));
+    await userEvent.click(within(docs).getByRole('button', { name: 'Remove document' }));
+    expect(within(docs).getByLabelText(/^Why is it being removed/)).toHaveAccessibleDescription(
+      /at least 10 characters/,
+    );
+    await userEvent.type(
+      within(docs).getByLabelText(/^Why is it being removed/),
+      'Uploaded to the wrong child',
+    );
+    await userEvent.click(within(docs).getByRole('button', { name: 'Remove document' }));
+    const removal = calls.find((c) => c.url.endsWith('/documents/d1/remove'))!;
+    expect(JSON.parse(String(removal.init.body))).toEqual({ reason: 'Uploaded to the wrong child' });
+  });
+
   it('does not offer changes to teachers', async () => {
     profile(teacher);
     await screen.findByRole('heading', { name: 'Anaya Rao' });
     expect(screen.queryByRole('button', { name: /Change relationship/ })).toBeNull();
     expect(screen.queryByText('Add a guardian')).toBeNull();
     expect(screen.queryByText(/Signed-in devices for/)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Documents' })).toBeNull();
   });
 
   it('has no automatically detectable accessibility violations', async () => {

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError, apiRequest } from '../api/client';
+import { ApiError, apiBlob, apiRequest } from '../api/client';
 import type {
   AcademicStructure,
   Campus,
@@ -261,7 +261,193 @@ export function StudentProfilePage({ me }: { me: Me }) {
           {manage && <AddGuardianForm studentId={s.id} onSaved={reload} />}
         </section>
       )}
+
+      {s.view === 'STAFF' && manage && <StudentDocuments studentId={s.id} />}
     </>
+  );
+}
+
+interface StudentDocument {
+  id: string;
+  kind: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  note: string | null;
+  uploadedAt: string;
+}
+
+const documentKinds: [string, string][] = [
+  ['BIRTH_CERTIFICATE', 'Birth certificate'],
+  ['TRANSFER_CERTIFICATE', 'Transfer certificate'],
+  ['ID_PROOF', 'ID proof'],
+  ['MEDICAL', 'Medical letter'],
+  ['OTHER', 'Other'],
+];
+const kindText = Object.fromEntries(documentKinds);
+const sizeText = (n: number) =>
+  n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`;
+
+/** Documents kept with the student. Only the school office sees this; every download is recorded by the server. */
+function StudentDocuments({ studentId }: { studentId: string }) {
+  const session = useApiSession();
+  const base = `/api/v1/students/${studentId}/documents`;
+  const [docs, reload] = useApiResource<StudentDocument[]>(base);
+  const [kind, setKind] = useState('BIRTH_CERTIFICATE');
+  const [note, setNote] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | undefined>();
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState<string | undefined>();
+  const { busy, save, feedback } = useSave();
+
+  const add = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      setFileError('Choose a PDF, PNG or JPEG file of up to 5 MB.');
+      return;
+    }
+    setFileError(undefined);
+    const form = new FormData();
+    form.append('file', file);
+    form.append('kind', kind);
+    if (note.trim()) form.append('note', note.trim());
+    const ok = await save(() => apiRequest(session, base, { method: 'POST', form }), 'Document added.');
+    if (ok) {
+      setFile(null);
+      setNote('');
+      (e.target as HTMLFormElement).reset();
+      reload();
+    }
+  };
+
+  const open = async (d: StudentDocument) => {
+    await save(async () => {
+      const blob = await apiBlob(session, `${base}/${d.id}/content`);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = d.fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, 'Downloaded. The download is recorded.');
+  };
+
+  const remove = async (e: FormEvent) => {
+    e.preventDefault();
+    if (reason.trim().length < 10) {
+      setReasonError('Give a reason of at least 10 characters. It is kept in the audit trail.');
+      return;
+    }
+    setReasonError(undefined);
+    const ok = await save(
+      () =>
+        apiRequest(session, `${base}/${removing}/remove`, {
+          method: 'POST',
+          body: { reason: reason.trim() },
+        }),
+      'Document removed.',
+    );
+    if (ok) {
+      setRemoving(null);
+      setReason('');
+      reload();
+    }
+  };
+
+  return (
+    <section className="section" aria-labelledby="documents-h">
+      <h2 id="documents-h" className="section__title">
+        Documents
+      </h2>
+      {docs.status === 'loading' && <LoadingState label="Loading documents" />}
+      {docs.status === 'error' && <ErrorState error={docs.error} onRetry={reload} />}
+      {docs.status === 'ready' && docs.data.length === 0 && <EmptyState title="No documents kept" />}
+      {docs.status === 'ready' && docs.data.length > 0 && (
+        <ul className="plain-list">
+          {docs.data.map((d) => (
+            <li key={d.id}>
+              <strong>{kindText[d.kind] ?? d.kind}</strong> · {d.fileName}{' '}
+              <span className="muted">
+                {sizeText(d.sizeBytes)} · added {formatDateTime(d.uploadedAt)}
+                {d.note ? ` · ${d.note}` : ''}
+              </span>{' '}
+              <Button variant="quiet" aria-label={`Download ${d.fileName}`} onClick={() => void open(d)}>
+                Download
+              </Button>{' '}
+              <Button
+                variant="quiet"
+                aria-label={`Remove ${d.fileName}`}
+                onClick={() => {
+                  setRemoving(d.id);
+                  setReason('');
+                }}
+              >
+                Remove
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {feedback}
+      {removing && (
+        <form className="form" onSubmit={remove} noValidate>
+          <Field
+            label="Why is it being removed?"
+            hint="Kept in the audit trail. The file itself is deleted."
+            required
+            error={reasonError}
+          >
+            {(p) => (
+              <input {...p} value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} />
+            )}
+          </Field>
+          <div className="form__actions">
+            <Button type="submit" variant="primary" disabled={busy}>
+              Remove document
+            </Button>
+            <Button variant="secondary" onClick={() => setRemoving(null)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
+      <details>
+        <summary>Add a document</summary>
+        <form className="form" onSubmit={add} noValidate>
+          <Field label="Kind">
+            {(p) => (
+              <select {...p} value={kind} onChange={(e) => setKind(e.target.value)}>
+                {documentKinds.map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label="File" hint="PDF, PNG or JPEG, up to 5 MB." required error={fileError}>
+            {(p) => (
+              <input
+                {...p}
+                type="file"
+                accept="application/pdf,image/png,image/jpeg"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            )}
+          </Field>
+          <Field label="Note" hint="Optional, up to 300 characters.">
+            {(p) => <input {...p} value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} />}
+          </Field>
+          <div className="form__actions">
+            <Button type="submit" variant="primary" disabled={busy}>
+              Add document
+            </Button>
+          </div>
+        </form>
+      </details>
+    </section>
   );
 }
 

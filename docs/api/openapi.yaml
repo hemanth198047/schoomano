@@ -911,6 +911,83 @@ paths:
         '204': { description: Session ended }
         '401': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/students/{studentId}/documents:
+    get:
+      summary: "Documents kept with a student (not the files). PERSON_MANAGE at the student's campus; teachers and guardians get 404."
+      operationId: listStudentDocuments
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Live documents, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StudentDocument' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      summary: "Add a document: a PDF, PNG or JPEG of up to 5 MB, judged from its bytes, with a kind and an optional note. At most 20 live documents per student. Audited."
+      operationId: addStudentDocument
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind]
+              properties:
+                file: { type: string, format: binary }
+                kind: { type: string, enum: [BIRTH_CERTIFICATE, TRANSFER_CERTIFICATE, ID_PROOF, MEDICAL, OTHER] }
+                note: { type: string, maxLength: 300 }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudentDocument' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/students/{studentId}/documents/{documentId}/content:
+    get:
+      summary: "Download the file, always as an attachment with no sniffing and no caching. Every download is recorded in the audit trail."
+      operationId: downloadStudentDocument
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The file
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/students/{studentId}/documents/{documentId}/remove:
+    post:
+      summary: "Remove a document for a reason (10 to 300 characters). The file is deleted; who removed it, when and why stays. Audited."
+      operationId: removeStudentDocument
+      parameters:
+        - { name: studentId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 300 }
+      responses:
+        '200': { description: Removed }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+
   /api/v1/guardians/{guardianId}/sessions:
     get:
       summary: "Where a guardian is signed in (device label, first and last seen). PERSON_MANAGE for one of their children; otherwise 404."
@@ -3685,6 +3762,17 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    StudentDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer }
+        note: { type: [string, 'null'] }
+        uploadedBy: { type: string, format: uuid }
+        uploadedAt: { type: string, format: date-time }
     BreakGlassGrant:
       type: object
       properties:

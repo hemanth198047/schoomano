@@ -114,6 +114,28 @@ export async function apiText(
   return { text: await res.text(), truncated: res.headers.get('X-Export-Truncated') === 'true' };
 }
 
+/** Fetches a file (a document) with the session's sign-in. */
+export async function apiBlob(session: ApiSession, path: string): Promise<Blob> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${session.token}`,
+    'X-Correlation-Id': newCorrelationId(),
+  };
+  if (session.tenantSlug) headers['X-Schoomano-Tenant'] = session.tenantSlug;
+  let res: Response;
+  try {
+    res = await fetch(`${session.baseUrl}${path}`, { headers });
+  } catch {
+    throw new ApiError(
+      0,
+      'network_unreachable',
+      'The server could not be reached. Check your connection.',
+      null,
+    );
+  }
+  if (!res.ok) throw await errorFrom(res);
+  return res.blob();
+}
+
 /** Calls an endpoint that needs no session (phone sign-in). Same error shape as apiRequest. */
 export async function publicRequest<T>(baseUrl: string, path: string, body: unknown): Promise<T> {
   let res: Response;
