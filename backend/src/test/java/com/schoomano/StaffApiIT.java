@@ -59,8 +59,11 @@ class StaffApiIT extends ApiITSupport {
             assertEquals(1, ((java.util.List<?>) JsonPath.read(listed, "$[?(@.personId=='" + id + "')]")).size());
 
             mvc.perform(json(post(base + "/" + grantId + "/end"), "dev-asha", "{\"reason\":\"short\"}")).andExpect(status().isBadRequest());
+            // A role ends at least one second after it began (the table requires valid_to after valid_from).
+            Thread.sleep(1100);
             mvc.perform(json(post(base + "/" + grantId + "/end"), "dev-asha", "{\"reason\":\"Moved to another school\"}")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles.length()").value(0));
+            Thread.sleep(1100);
             mvc.perform(json(post(base + "/" + grantId + "/end"), "dev-asha", "{\"reason\":\"Ending it a second time\"}")).andExpect(status().isNotFound());
 
             assertEquals(1, ownerCount("select count(*) from audit_event where action = 'staff.role_granted' and resource_id = '" + id + "'"));
