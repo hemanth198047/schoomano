@@ -4,7 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.schoomano.domain.imports.StudentImport;
 import com.schoomano.domain.imports.StudentImport.Action;
+import com.schoomano.domain.imports.StudentImport.Contact;
 import com.schoomano.domain.imports.StudentImport.FieldChange;
+import com.schoomano.domain.imports.StudentImport.GuardianAdd;
+import com.schoomano.domain.imports.StudentImport.GuardianBook;
 import com.schoomano.domain.imports.StudentImport.Linked;
 import com.schoomano.domain.imports.StudentImport.Placement;
 import com.schoomano.domain.imports.StudentImport.RowPlan;
@@ -43,7 +46,8 @@ public class StudentImporter {
     record Catalog(List<Placement> placements, Map<String, SectionRef> byCanonical) { }
 
     public StudentImport.Plan plan(JdbcTemplate jdbc, List<List<String>> table, UUID yearId, LocalDate today) {
-        return StudentImport.plan(table, catalog(jdbc, yearId).placements(), linked(jdbc, yearId), unlinkedRefs(jdbc), today);
+        return StudentImport.plan(table, catalog(jdbc, yearId).placements(), linked(jdbc, yearId), unlinkedRefs(jdbc), today,
+            guardianBook(jdbc));
     }
 
     Catalog catalog(JdbcTemplate jdbc, UUID yearId) {
@@ -119,6 +123,20 @@ public class StudentImporter {
             .stream().findFirst().orElse(Map.of());
     }
 
+    /** Existing contacts by mobile number, and every student and guardian pair already related (any status). */
+    GuardianBook guardianBook(JdbcTemplate jdbc) {
+        Map<String, Contact> byMobile = new HashMap<>();
+        jdbc.query("""
+            select mobile_e164, id, trim(coalesce(given_name, '') || ' ' || coalesce(family_name, '')) from person
+             where mobile_e164 is not null
+            """, rs -> { byMobile.put(rs.getString(1), new Contact(rs.getObject(2, UUID.class), rs.getString(3))); });
+        Set<String> pairs = new HashSet<>();
+        jdbc.query("select student_person_id, guardian_person_id from guardian_relationship", rs -> {
+            pairs.add(GuardianBook.pair(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)));
+        });
+        return new GuardianBook(byMobile, pairs);
+    }
+
     /** School references of people not linked to the old system (an import must not collide with them). */
     Set<String> unlinkedRefs(JdbcTemplate jdbc) {
         return new HashSet<>(jdbc.queryForList("""
@@ -156,6 +174,7 @@ public class StudentImporter {
         List<Object[]> enrollments = new ArrayList<>();
         List<Object[]> links = new ArrayList<>();
         List<Object[]> applied = new ArrayList<>();
+        Map<Integer, UUID> studentOf = new HashMap<>();
         int created = 0;
         int updated = 0;
         int unchanged = 0;
@@ -169,6 +188,7 @@ public class StudentImporter {
             switch (r.action()) {
                 case CREATE -> {
                     UUID person = UUID.randomUUID();
+                    studentOf.put(r.rowNo(), person);
                     persons.add(new Object[] {person, tenant, r.externalRef(), inc.get(StudentImport.GIVEN_NAME),
                         blankToNull(inc.get(StudentImport.FAMILY_NAME)), date(inc.get(StudentImport.DATE_OF_BIRTH)),
                         provenance, actor});
@@ -180,7 +200,11 @@ public class StudentImporter {
                 }
                 case UPDATE -> {
                     Linked link = linked.get(key);
+                    studentOf.put(r.rowNo(), link.personId());
                     for (FieldChange c : r.changes()) {
+                        if (c.field().startsWith(StudentImport.GUARDIAN_PREFIX)) {
+                            continue;   // guardians are added after the students exist
+                        }
                         switch (c.field()) {
                             case StudentImport.GIVEN_NAME -> jdbc.update(
                                 "update person set given_name = ?, updated_at = now(), updated_by = ? where id = ?",
@@ -236,7 +260,94 @@ public class StudentImporter {
             update import_row set applied = true, person_id = ?, before_values = ?::jsonb, link_before = ?::jsonb
              where tenant_id = ? and batch_id = ? and row_no = ?
             """, applied);
+        for (RowPlan r : rows) {
+            if (r.guardians().isEmpty() || (r.action() != Action.CREATE && r.action() != Action.UPDATE)) {
+                continue;
+            }
+            Map<String, List<String>> ops = addGuardians(jdbc, tenant, studentOf.get(r.rowNo()), r.guardians(), actor, batchId);
+            if (!ops.get("relationships").isEmpty()) {
+                jdbc.update("update import_row set guardian_ops = ?::jsonb where tenant_id = ? and batch_id = ? and row_no = ?",
+                    write(ops), tenant, batchId, r.rowNo());
+            }
+        }
         return new Applied(created, updated, unchanged, skipped);
+    }
+
+    /**
+     * Links the guardians a row names to its student, creating a contact only when no one holds that mobile number. An existing
+     * relationship in any status is left exactly as it is. Returns the ids created, for rollback.
+     */
+    private Map<String, List<String>> addGuardians(JdbcTemplate jdbc, UUID tenant, UUID student, List<GuardianAdd> adds, UUID actor,
+                                                   UUID batchId) {
+        List<String> people = new ArrayList<>();
+        List<String> relationships = new ArrayList<>();
+        String provenance = write(Map.of("source", SOURCE, "batchId", batchId.toString()));
+        for (GuardianAdd a : adds) {
+            List<UUID> found = jdbc.queryForList("select id from person where mobile_e164 = ?", UUID.class, a.mobile());
+            UUID guardian;
+            if (found.isEmpty()) {
+                String ref = jdbc.queryForObject("""
+                    select 'GRD-' || lpad((coalesce(max(substring(school_ref from '^GRD-([0-9]+)$')::int), 0) + 1)::text, 5, '0') from person
+                    """, String.class);
+                int cut = a.name().lastIndexOf(' ');
+                guardian = jdbc.queryForObject("""
+                    insert into person (tenant_id, school_ref, given_name, family_name, mobile_e164, email, created_by, provenance)
+                    values (?, ?, ?, ?, ?, ?, ?, ?::jsonb) returning id
+                    """, UUID.class, tenant, ref, cut < 0 ? a.name() : a.name().substring(0, cut),
+                    cut < 0 ? null : a.name().substring(cut + 1), a.mobile(), blankToNull(a.email()), actor, provenance);
+                people.add(guardian.toString());
+            } else {
+                guardian = found.get(0);
+            }
+            Integer related = jdbc.queryForObject(
+                "select count(*)::int from guardian_relationship where guardian_person_id = ? and student_person_id = ?", Integer.class,
+                guardian, student);
+            if (guardian.equals(student) || (related != null && related > 0)) {
+                continue;
+            }
+            UUID rel = jdbc.queryForObject("""
+                insert into guardian_relationship (tenant_id, guardian_person_id, student_person_id, relationship_type,
+                    can_view_attendance, can_view_academic, can_pay_fees, can_give_consent, can_receive_notices, can_pickup,
+                    status, provenance)
+                values (?, ?, ?, ?, true, true, true, true, true, false, 'ACTIVE', ?::jsonb) returning id
+                """, UUID.class, tenant, guardian, student, a.relationship(), provenance);
+            relationships.add(rel.toString());
+        }
+        return Map.of("people", people, "relationships", relationships);
+    }
+
+    /** Removes the guardian links and contacts an import row created, unless someone has changed or used them since. */
+    private void revertGuardians(JdbcTemplate jdbc, String ops, String ref, List<String> kept) {
+        if (ops == null) {
+            return;
+        }
+        Map<String, List<String>> m;
+        try {
+            m = json.readValue(ops, new TypeReference<Map<String, List<String>>>() { });
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+        for (String rel : m.getOrDefault("relationships", List.of())) {
+            UUID id = UUID.fromString(rel);
+            int gone = jdbc.update("delete from guardian_relationship where id = ? and status = 'ACTIVE' and updated_at is null", id);
+            Integer left = jdbc.queryForObject("select count(*)::int from guardian_relationship where id = ?", Integer.class, id);
+            if (gone == 0 && left != null && left > 0) {
+                kept.add(ref + ": a guardian link was kept, because it was changed after the import.");
+            }
+        }
+        for (String p : m.getOrDefault("people", List.of())) {
+            UUID id = UUID.fromString(p);
+            Integer refs = jdbc.queryForObject("""
+                select (select count(*) from guardian_relationship where guardian_person_id = ?)
+                     + (select count(*) from identity where person_id = ?)
+                     + (select count(*) from role_grant where person_id = ?)
+                     + (select count(*) from household_member where person_id = ?)
+                     + (select count(*) from notice_delivery where recipient_person_id = ?)
+                """, Integer.class, id, id, id, id, id);
+            if (refs != null && refs == 0) {
+                jdbc.update("delete from person where id = ?", id);
+            }
+        }
     }
 
     private static void place(JdbcTemplate jdbc, UUID tenant, UUID person, UUID campusId, UUID yearId, SectionRef s) {
@@ -264,13 +375,14 @@ public class StudentImporter {
         List<String> kept = new ArrayList<>();
         List<Map<String, Object>> rows = jdbc.queryForList("""
             select row_no, external_ref, action, person_id, incoming::text, changes::text, before_values::text,
-                   link_before::text
+                   link_before::text, guardian_ops::text
               from import_row where batch_id = ? and applied order by row_no
             """, batchId);
         for (Map<String, Object> row : rows) {
             UUID person = (UUID) row.get("person_id");
             String ref = (String) row.get("external_ref");
             String key = ref.toUpperCase(java.util.Locale.ROOT);
+            revertGuardians(jdbc, (String) row.get("guardian_ops"), ref, kept);
             Map<String, String> incoming = read((String) row.get("incoming"));
             Map<String, String> now = current(jdbc, person, yearId);
             switch (Action.valueOf((String) row.get("action"))) {
@@ -298,6 +410,9 @@ public class StudentImporter {
                         new TypeReference<List<FieldChange>>() { });
                     boolean any = false;
                     for (FieldChange c : changes) {
+                        if (c.field().startsWith(StudentImport.GUARDIAN_PREFIX)) {
+                            continue;   // guardian links were reverted above
+                        }
                         String cur = Objects.requireNonNullElse(now.get(c.field()), "");
                         if (!cur.equals(c.after())) {
                             kept.add(ref + ": " + c.field() + " kept as \"" + cur + "\", because it changed after the import.");

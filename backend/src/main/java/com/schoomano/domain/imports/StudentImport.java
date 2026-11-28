@@ -1,5 +1,6 @@
 package com.schoomano.domain.imports;
 
+import com.schoomano.domain.people.IndianMobile;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -45,9 +47,28 @@ public final class StudentImport {
 
     public record FieldChange(String field, String before, String after) { }
 
+    /** A guardian the file names for a student and who is not yet linked: matched to an existing contact by mobile or new. */
+    public record GuardianAdd(String slot, String relationship, String name, String mobile, String email, UUID existingPersonId) { }
+
+    /** Existing guardian contacts by normalised mobile, and every student/guardian pair already related in any status. */
+    public record GuardianBook(Map<String, Contact> byMobile, Set<String> pairs) {
+        public static final GuardianBook EMPTY = new GuardianBook(Map.of(), Set.of());
+
+        public static String pair(UUID student, UUID guardian) {
+            return student + "|" + guardian;
+        }
+    }
+
+    public record Contact(UUID personId, String name) { }
+
     /** One file row after planning. {@code incoming} holds the canonical values for the four fields. */
     public record RowPlan(int rowNo, String externalRef, Action action, List<String> problems,
-                          List<FieldChange> changes, Map<String, String> incoming, UUID personId) { }
+                          List<FieldChange> changes, Map<String, String> incoming, UUID personId, List<GuardianAdd> guardians) {
+        public RowPlan(int rowNo, String externalRef, Action action, List<String> problems, List<FieldChange> changes,
+                       Map<String, String> incoming, UUID personId) {
+            this(rowNo, externalRef, action, problems, changes, incoming, personId, List.of());
+        }
+    }
 
     /** A student already linked to the old system: the last values imported and the values held now. */
     public record Linked(UUID personId, Map<String, String> last, Map<String, String> current) { }
@@ -81,7 +102,22 @@ public final class StudentImport {
         Map.entry("programme", "programme"), Map.entry("program", "programme"), Map.entry("board", "programme"),
         Map.entry("programmecode", "programme"),
         Map.entry("grade", "grade"), Map.entry("class", "grade"), Map.entry("standard", "grade"),
-        Map.entry("section", "section"), Map.entry("division", "section"));
+        Map.entry("section", "section"), Map.entry("division", "section"),
+        Map.entry("fathername", "father.name"), Map.entry("fathersname", "father.name"),
+        Map.entry("fathermobile", "father.mobile"), Map.entry("fathersmobile", "father.mobile"), Map.entry("fatherphone", "father.mobile"),
+        Map.entry("fathercontact", "father.mobile"), Map.entry("fatheremail", "father.email"),
+        Map.entry("mothername", "mother.name"), Map.entry("mothersname", "mother.name"),
+        Map.entry("mothermobile", "mother.mobile"), Map.entry("mothersmobile", "mother.mobile"), Map.entry("motherphone", "mother.mobile"),
+        Map.entry("mothercontact", "mother.mobile"), Map.entry("motheremail", "mother.email"),
+        Map.entry("guardianname", "guardian.name"), Map.entry("guardiansname", "guardian.name"),
+        Map.entry("guardianmobile", "guardian.mobile"), Map.entry("guardiansmobile", "guardian.mobile"),
+        Map.entry("guardianphone", "guardian.mobile"), Map.entry("guardiancontact", "guardian.mobile"),
+        Map.entry("guardianemail", "guardian.email"));
+
+    /** Guardian columns the file may carry, and the relationship each one stands for. */
+    public static final Map<String, String> SLOTS = Map.of("father", "FATHER", "mother", "MOTHER", "guardian", "GUARDIAN");
+    private static final List<String> SLOT_ORDER = List.of("father", "mother", "guardian");
+    public static final String GUARDIAN_PREFIX = "guardian.";
 
     private static final List<DateTimeFormatter> DATES = List.of(
         DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT),
@@ -98,6 +134,12 @@ public final class StudentImport {
      */
     public static Plan plan(List<List<String>> table, Collection<Placement> placements, Map<String, Linked> linked,
                             Set<String> unlinkedRefs, LocalDate today) {
+        return plan(table, placements, linked, unlinkedRefs, today, GuardianBook.EMPTY);
+    }
+
+    /** As above, and a file with father, mother or guardian columns also adds the guardians not yet linked (never changes or ends one). */
+    public static Plan plan(List<List<String>> table, Collection<Placement> placements, Map<String, Linked> linked,
+                            Set<String> unlinkedRefs, LocalDate today, GuardianBook book) {
         List<String> fileProblems = new ArrayList<>();
         if (table.isEmpty()) {
             return new Plan(List.of(), List.of("The file is empty."), List.of());
@@ -167,6 +209,10 @@ public final class StudentImport {
             String placement = resolvePlacement(cell(raw, col.get("programme")), cell(raw, col.get("grade")),
                 cell(raw, col.get("section")), placements, problems);
 
+            String earlyKey = ref.toUpperCase(Locale.ROOT);
+            Linked earlyLink = linked.get(earlyKey);
+            List<GuardianAdd> adds = guardians(raw, col, earlyLink == null ? null : earlyLink.personId(), book, problems);
+
             Map<String, String> incoming = new LinkedHashMap<>();
             incoming.put(GIVEN_NAME, given);
             incoming.put(FAMILY_NAME, family);
@@ -191,15 +237,88 @@ public final class StudentImport {
                             changes.add(new FieldChange(f, "", v));
                         }
                     });
-                    rows.add(new RowPlan(rowNo, ref, Action.CREATE, List.of(), changes, incoming, null));
+                    adds.forEach(a -> changes.add(guardianChange(a)));
+                    rows.add(new RowPlan(rowNo, ref, Action.CREATE, List.of(), changes, incoming, null, adds));
                 }
                 continue;
             }
-            rows.add(compare(rowNo, ref, link, incoming));
+            rows.add(withGuardians(compare(rowNo, ref, link, incoming), adds));
         }
 
         List<String> missing = linked.keySet().stream().filter(k -> !inFile.contains(k)).sorted().toList();
         return new Plan(rows, fileProblems, missing);
+    }
+
+    /** A row that is not in conflict also carries the guardians to add; adding one turns "unchanged" into "update". */
+    private static RowPlan withGuardians(RowPlan plan, List<GuardianAdd> adds) {
+        if (adds.isEmpty() || plan.action() == Action.CONFLICT) {
+            return plan;
+        }
+        List<FieldChange> changes = new ArrayList<>(plan.changes());
+        adds.forEach(a -> changes.add(guardianChange(a)));
+        return new RowPlan(plan.rowNo(), plan.externalRef(), Action.UPDATE, plan.problems(), changes, plan.incoming(), plan.personId(), adds);
+    }
+
+    private static FieldChange guardianChange(GuardianAdd a) {
+        String who = a.name().isEmpty() ? "existing contact" : a.name() + (a.existingPersonId() != null ? " (existing contact)" : "");
+        return new FieldChange(GUARDIAN_PREFIX + a.slot(), "", capitalise(a.slot()) + ": " + who + ", " + a.mobile());
+    }
+
+    /** Reads the father, mother and guardian columns of one row. Adds only guardians not yet related to the student. */
+    private static List<GuardianAdd> guardians(List<String> raw, Map<String, Integer> col, UUID studentId, GuardianBook book,
+                                               List<String> problems) {
+        List<GuardianAdd> adds = new ArrayList<>();
+        Set<String> used = new HashSet<>();
+        for (String slot : SLOT_ORDER) {
+            String name = clean(cell(raw, col.get(slot + ".name")));
+            String rawMobile = cell(raw, col.get(slot + ".mobile"));
+            String email = clean(cell(raw, col.get(slot + ".email")));
+            if (name.isEmpty() && rawMobile.isEmpty() && email.isEmpty()) {
+                continue;
+            }
+            String label = capitalise(slot);
+            if (rawMobile.isEmpty()) {
+                problems.add(label + " mobile number is missing.");
+                continue;
+            }
+            Optional<String> mobile = IndianMobile.normalise(rawMobile);
+            if (mobile.isEmpty()) {
+                problems.add(label + " mobile number \"" + rawMobile + "\" is not a valid Indian mobile number.");
+                continue;
+            }
+            if (!used.add(mobile.get())) {
+                problems.add(label + " has the same mobile number as another guardian on this row.");
+                continue;
+            }
+            if (name.length() > 80) {
+                problems.add(label + " name is longer than 80 characters.");
+                continue;
+            }
+            if (!email.isEmpty() && (email.length() > 200 || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))) {
+                problems.add(label + " email \"" + email + "\" is not a valid address.");
+                continue;
+            }
+            Contact known = book.byMobile().get(mobile.get());
+            if (known == null && name.isEmpty()) {
+                problems.add(label + " name is missing (it is needed for a new contact).");
+                continue;
+            }
+            if (known != null && studentId != null) {
+                if (known.personId().equals(studentId)) {
+                    problems.add(label + " mobile number belongs to the student.");
+                    continue;
+                }
+                if (book.pairs().contains(GuardianBook.pair(studentId, known.personId()))) {
+                    continue;   // already related, in whatever status: an import never changes or revives a relationship
+                }
+            }
+            adds.add(new GuardianAdd(slot, SLOTS.get(slot), name, mobile.get(), email, known == null ? null : known.personId()));
+        }
+        return adds;
+    }
+
+    private static String capitalise(String s) {
+        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
     }
 
     private static RowPlan compare(int rowNo, String ref, Linked link, Map<String, String> incoming) {
