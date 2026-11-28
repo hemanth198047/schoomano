@@ -29,6 +29,7 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
  * answer, the answer is kept for 24 hours. The same request repeated with the same key gets that answer again (header
  * Idempotent-Replay: true) and does no work. The same key on a different request is refused with 422, and a repeat while the
  * first is still running with 409. Failed requests are forgotten so the client may retry with the same key.
+ * The attendance batch and the invoice payment endpoints keep their own keys and are left alone.
  * Runs after authentication; unauthenticated, multipart and bodies over 1 MB are not handled and pass through unchanged.
  */
 public class IdempotencyFilter extends OncePerRequestFilter {
@@ -37,6 +38,9 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     static final int MAX_REQUEST = 1024 * 1024;
     static final int MAX_STORED = 256 * 1024;
     private static final Pattern KEY = Pattern.compile("^[A-Za-z0-9._:-]{8,100}$");
+    /** Endpoints that already keep their own idempotency (and answer a repeat in their own way). */
+    private static final Pattern OWN_KEYS = Pattern.compile(
+        "^/api/v1/(sections/[^/]+/attendance/batches|invoices/[^/]+/(pay|payments/offline))$");
     private static final Set<String> METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
 
     private final IdempotencyService service;
@@ -51,7 +55,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         String key = request.getHeader(HEADER);
         String caller = caller();
         String type = request.getContentType();
-        if (key == null || caller == null || !METHODS.contains(request.getMethod()) || !request.getRequestURI().startsWith("/api/")
+        if (key == null || caller == null || !METHODS.contains(request.getMethod()) || !request.getRequestURI().startsWith("/api/") || OWN_KEYS.matcher(request.getRequestURI()).matches()
             || (type != null && type.toLowerCase().startsWith("multipart/"))) {
             chain.doFilter(request, response);
             return;
