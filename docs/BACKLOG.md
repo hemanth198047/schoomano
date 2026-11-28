@@ -53,7 +53,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B34** (done, verified in CI) Webhooks | M27 | B33 | Signed, retried delivery of school events to registered https endpoints; no student events until D7 |
 | **B35** (done, verified in CI) Approval reminders and escalation | M26 | B25, B30 | A request waiting 24 hours reminds the step's holders; at 72 hours leadership and the requester are told |
 | **B36** (done, verified in CI) Idempotency keys | M27, B6 | B33 | A repeated write with the same Idempotency-Key returns the first answer and does the work once |
-| **B40** (done, CI pending) Upload idempotency and required key | M27 | B36, B39 | The import upload honours Idempotency-Key; prod will not start without the secrets key |
+| **B40** (done, verified in CI) Upload idempotency and required key | M27 | B36, B39 | The import upload honours Idempotency-Key; prod will not start without the secrets key |
 | **B39** (done, verified in CI) Webhook secret encryption and rotation | M27 | B34 | Secrets encrypted at rest; replace a secret with an overlap period when posts carry both signatures |
 | **B37** (done, verified in CI) Import file purge | M29 | B2 | Settled imports lose their file and row values after retention and keep their record |
 | **B38** (done, verified in CI) Guardians in the student import | M29 | B2, B3 | Father, mother and guardian columns link or create contacts; never revive an ended link; rolled back with the import |
