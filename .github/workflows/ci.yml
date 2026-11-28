@@ -82,6 +82,14 @@ jobs:
           $P -f backend/db/tests/import_purge_test.sql
           $P -f backend/db/tests/break_glass_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
+      - name: Backup and restore drill (and a check that the drill notices damage)
+        run: |
+          export PGHOST=localhost PGUSER=schoomano_owner
+          psql -d schoomano -v ON_ERROR_STOP=1 -c "insert into audit_event (tenant_id, actor_kind, action, resource_type, resource_id, outcome) select id, 'SYSTEM', 'drill.probe', 'probe', g::text, 'SUCCESS' from tenant, generate_series(1,3) g"
+          sh backend/scripts/backup-drill.sh schoomano
+          for damage in rows rls audit; do
+            if DRILL_TAMPER=$damage sh backend/scripts/backup-drill.sh schoomano; then echo "the drill did not notice damage: $damage"; exit 1; fi
+          done
 
   frontend:
     runs-on: ubuntu-24.04
