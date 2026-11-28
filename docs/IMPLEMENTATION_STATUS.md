@@ -117,7 +117,7 @@ Everything listed as implemented has been built and has passed its tests in CI. 
 - A pilot school to run alongside its current system, which is the Phase 1 exit gate (spec section 13).
 
 **2. Gaps inside modules already started (each module's Missing list above has the detail)**
-- M01: invitations, custom roles screen.
+- M01: invitation acceptance (needs a real OIDC provider; staff and their roles are managed from the Staff page, B61) and a custom roles screen (roles are fixed in `RoleCatalog`).
 - M27 and M29: moving the older per-feature keys onto the common filter (attendance sync keeps its own).
 - M30: support-staff identity management, alerts outside the app and dashboards, emergency-access requests for safeguarding records from the screen, audit retention and archiving (a design waiting for D7 is in `AUDIT_RETENTION.md`).
 - M03, M07, M08, M09, M13, M14: documents, more curriculum and learning tools, targeting notices by household or programme, a real payment gateway, and the other items in their rows.

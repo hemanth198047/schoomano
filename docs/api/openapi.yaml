@@ -988,6 +988,95 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/staff:
+    get:
+      summary: "Staff with their live roles. ROLE_GRANT_MANAGE at group scope (group administrators); otherwise 404."
+      operationId: listStaff
+      responses:
+        '200':
+          description: Staff, newest roles first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/StaffMember' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      summary: "Add a staff person (name and work email). 409 already_listed when the email is already a staff member. Audited as staff.added."
+      operationId: addStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [givenName, email]
+              properties:
+                givenName: { type: string }
+                familyName: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '201':
+          description: Added, with no role yet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffMember' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/staff/{personId}/roles:
+    post:
+      summary: "Give a role at group or campus scope, with a reason (10 to 300 characters). Codes: unknown_role, group_role, unknown_campus, campus_role, already_has_role (409). Audited as staff.role_granted."
+      operationId: grantStaffRole
+      parameters:
+        - { name: personId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleKey, scopeLevel, reason]
+              properties:
+                roleKey: { type: string }
+                scopeLevel: { type: string, enum: [GROUP, CAMPUS] }
+                scopeId: { type: [string, 'null'], format: uuid }
+                reason: { type: string, minLength: 10, maxLength: 300 }
+      responses:
+        '201':
+          description: The person with their roles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffMember' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
+  /api/v1/staff/{personId}/roles/{grantId}/end:
+    post:
+      summary: "End a role with a reason. 409 last_administrator when it is the group's last live group_admin. Audited as staff.role_ended."
+      operationId: endStaffRole
+      parameters:
+        - { name: personId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: grantId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 300 }
+      responses:
+        '200':
+          description: The person with their remaining roles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffMember' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+
   /api/v1/auth/sessions:
     get:
       summary: "Where the caller's own number is signed in (parent sessions), the device in use first. Needs a parent session; anything else gets an empty list."
@@ -3806,6 +3895,25 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    StaffMember:
+      type: object
+      properties:
+        personId: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: [string, 'null'] }
+        status: { type: string }
+        roles:
+          type: array
+          items:
+            type: object
+            properties:
+              grantId: { type: string, format: uuid }
+              roleKey: { type: string }
+              scopeLevel: { type: string, enum: [GROUP, CAMPUS] }
+              scopeId: { type: string, format: uuid }
+              scopeName: { type: string }
+              validFrom: { type: string, format: date-time }
+              reason: { type: [string, 'null'] }
     StudentDocument:
       type: object
       properties:

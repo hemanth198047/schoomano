@@ -47,6 +47,11 @@ public final class RoleCatalog {
             "safeguarding_lead", EnumSet.of(CAMPUS_READ, STUDENT_READ_BASIC, SAFEGUARDING_CASE_READ, SAFEGUARDING_REPORT, LEAVE_REQUEST)));
     }
 
+    /** Every role the school can give to a person. */
+    public Set<String> roleKeys() {
+        return roles.keySet();
+    }
+
     public Set<Permission> permissionsOf(String roleKey) {
         return roles.getOrDefault(roleKey, Set.of());
     }

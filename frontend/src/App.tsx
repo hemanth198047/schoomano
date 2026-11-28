@@ -31,6 +31,7 @@ const WorkflowPage = lazy(() => import('./pages/WorkflowPage').then((m) => ({ de
 const IntegrationsPage = lazy(() =>
   import('./pages/IntegrationsPage').then((m) => ({ default: m.IntegrationsPage })),
 );
+const StaffPage = lazy(() => import('./pages/StaffPage').then((m) => ({ default: m.StaffPage })));
 const VisitorsPage = lazy(() => import('./pages/VisitorsPage').then((m) => ({ default: m.VisitorsPage })));
 const CompliancePage = lazy(() =>
   import('./pages/CompliancePage').then((m) => ({ default: m.CompliancePage })),
@@ -252,6 +253,14 @@ function SignedIn() {
                 campuses={campuses.status === 'ready' ? campuses.data : []}
                 selectedCampusId={selectedCampusId}
               />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/staff"
+          element={
+            <Suspense fallback={<LoadingState label="Opening staff" />}>
+              <StaffPage me={me.data} campuses={campuses.status === 'ready' ? campuses.data : []} />
             </Suspense>
           }
         />
