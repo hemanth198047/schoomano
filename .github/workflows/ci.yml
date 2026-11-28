@@ -78,6 +78,7 @@ jobs:
           $P -f backend/db/tests/api_keys_test.sql
           $P -f backend/db/tests/webhooks_test.sql
           $P -f backend/db/tests/workflow_nudges_test.sql
+          $P -f backend/db/tests/idempotency_test.sql
           $P -f backend/db/tests/app_queries_smoke_test.sql
 
   frontend:

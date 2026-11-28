@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -23,7 +24,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     @Bean
-    SecurityFilterChain api(HttpSecurity http, AppProperties props, Environment env, SignInService signIn, ApiKeyService apiKeys) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, AppProperties props, Environment env, SignInService signIn, ApiKeyService apiKeys,
+                           IdempotencyService idempotency) throws Exception {
         http
             // Stateless bearer-token API: no cookies, so CSRF tokens do not apply.
             .csrf(csrf -> csrf.disable())
@@ -41,7 +43,9 @@ public class SecurityConfig {
             // Parent sessions ("Bearer smo_...") from the phone OTP; works with both staff sign-in modes below.
             .addFilterBefore(new SessionTokenFilter(signIn), UsernamePasswordAuthenticationFilter.class)
             // Integration API keys ("Bearer smk_..."): read-only service identities.
-            .addFilterBefore(new ApiKeyFilter(apiKeys), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new ApiKeyFilter(apiKeys), UsernamePasswordAuthenticationFilter.class)
+            // Repeated writes with the same Idempotency-Key return the first answer instead of doing the work again.
+            .addFilterAfter(new IdempotencyFilter(idempotency), AuthorizationFilter.class);
 
         if (props.auth() != null && props.auth().devMode()) {
             if (Arrays.asList(env.getActiveProfiles()).contains("prod")) {

@@ -3332,6 +3332,8 @@ paths:
     post:
       tags: [Integrations]
       summary: Register an https endpoint. The signing secret is in this response only (WEBHOOK_MANAGE)
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
       requestBody:
         required: true
         content:
@@ -3388,6 +3390,7 @@ paths:
       tags: [Integrations]
       summary: Create a read-only key for an outside system. The secret is in this response only (APIKEY_MANAGE)
       parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
         - { name: campusId, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
         required: true
@@ -3537,6 +3540,12 @@ components:
       description: OIDC access token for staff, or an opaque `smo_...` session token for parents who signed in with a phone code (see /api/v1/auth). Local development only accepts `dev:<subject>` for synthetic seed users.
 
   parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Optional on POST, PUT, PATCH and DELETE (not on file uploads). 8 to 100 letters, digits or . _ - and colon. The first successful JSON answer is kept for 24 hours and returned again, with Idempotent-Replay true, to the same caller repeating the same request. The same key on a different request gives 422 idempotency_key_reused; a repeat while the first is still running gives 409 request_in_progress. Failed requests are not kept, so a retry with the same key runs again.
+      schema: { type: string, minLength: 8, maxLength: 100 }
     TenantSelector:
       name: X-Schoomano-Tenant
       in: header
