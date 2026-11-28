@@ -108,4 +108,74 @@ describe('HealthPage', () => {
     expect(await screen.findByText('Wheezing after PE')).toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
+
+  it('lets a teacher open a record in an emergency only after giving a reason', async () => {
+    let granted = false;
+    const calls = stubFetch((url, init) => {
+      if (url.includes('/academic-structure')) return { body: structure };
+      if (url.includes('/health-flags')) return { body: [] };
+      if (url.includes('/students?')) {
+        return {
+          body: {
+            total: 1,
+            students: [
+              {
+                id: 'st1',
+                schoolRef: 'STU-0020',
+                displayName: 'Anaya Rao',
+                programmeCode: 'CBSE-K12',
+                gradeName: 'Grade 5',
+                sectionCode: 'A',
+                guardians: 2,
+                source: 'LEGACY',
+                status: 'ENROLLED',
+              },
+            ],
+          },
+        };
+      }
+      if (url.endsWith('/break-glass') && init.method === 'POST') {
+        granted = true;
+        return { status: 201, body: { id: 'g1', expiresAt: '2026-11-28T10:00:00Z' } };
+      }
+      if (url.includes('/health-record')) {
+        return granted ? { body: record([]) } : { status: 404, body: { code: 'not_found', detail: 'no' } };
+      }
+      return { status: 404, body: { code: 'not_found', detail: 'no' } };
+    });
+    const user = userEvent.setup();
+    const { container } = renderWithApp(
+      <HealthPage me={role('teacher')} campuses={campuses} selectedCampusId="n" />,
+    );
+    await user.type(await screen.findByLabelText(/^Find the child/), 'Anaya');
+    await user.click(screen.getByRole('button', { name: 'Search for emergency access' }));
+    await user.click(await screen.findByRole('button', { name: 'Choose Anaya Rao' }));
+    const open = screen.getByRole('button', { name: 'Open the record in an emergency' });
+    expect(open).toBeDisabled();
+    expect(calls.some((c) => c.url.includes('/health-record'))).toBe(false);
+    await user.type(screen.getByLabelText(/^Why do you need it/), 'She collapsed in the corridor');
+    await user.selectOptions(screen.getByLabelText('For how long?'), '60');
+    expect(await axeViolations(container)).toEqual([]);
+    await user.click(open);
+    expect(await screen.findByText(/Emergency access granted until/)).toBeInTheDocument();
+    expect(await screen.findByText('Peanuts')).toBeInTheDocument();
+    const post = calls.find((c) => c.url.endsWith('/break-glass'))!;
+    expect(JSON.parse(String(post.init.body))).toEqual({
+      resourceType: 'health_record',
+      resourceId: 'st1',
+      justification: 'She collapsed in the corridor',
+      minutes: 60,
+    });
+  });
+
+  it('does not offer emergency access to the nurse, who already keeps the record', async () => {
+    stubFetch((url) =>
+      url.includes('/academic-structure')
+        ? { body: structure }
+        : { status: 404, body: { code: 'not_found', detail: 'no' } },
+    );
+    renderWithApp(<HealthPage me={role('nurse')} campuses={campuses} selectedCampusId="n" />);
+    await screen.findByText('Find a child');
+    expect(screen.queryByText('Emergency access to a health record')).not.toBeInTheDocument();
+  });
 });

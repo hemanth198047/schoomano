@@ -15,6 +15,7 @@ import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
+import { formatDateTime } from '../lib/format';
 
 /** Only the nurse keeps health records; the server decides, this just chooses the screen. */
 export const isNurse = (me: Me) => me.roles.some((r) => r.roleKey === 'nurse');
@@ -83,7 +84,10 @@ export function HealthPage({
             (isNurse(me) ? (
               <Infirmary key={structure.data.year.id} yearId={structure.data.year.id} />
             ) : (
-              <Flags key={structure.data.year.id} yearId={structure.data.year.id} />
+              <>
+                <Flags key={structure.data.year.id} yearId={structure.data.year.id} />
+                <EmergencyAccess key={`e-${structure.data.year.id}`} yearId={structure.data.year.id} />
+              </>
             ))}
         </>
       )}
@@ -111,6 +115,166 @@ function Flags({ yearId }: { yearId: string }) {
           </ul>
         ))}
     </section>
+  );
+}
+
+const MINUTES = [15, 30, 60, 120, 240];
+
+/**
+ * Emergency access for staff who are not the nurse. It asks for a reason and a time, records the request for review by the
+ * principal, and only then opens the record, read-only, for as long as the access lasts.
+ */
+function EmergencyAccess({ yearId }: { yearId: string }) {
+  const session = useApiSession();
+  const [query, setQuery] = useState('');
+  const [submitted, setSubmitted] = useState('');
+  const [student, setStudent] = useState<StudentListItem | null>(null);
+  const [reason, setReason] = useState('');
+  const [minutes, setMinutes] = useState(30);
+  const [granted, setGranted] = useState<{ until: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [found] = useApiResource<{ students: StudentListItem[] }>(
+    submitted ? `/api/v1/academic-years/${yearId}/students?limit=8&q=${encodeURIComponent(submitted)}` : null,
+  );
+
+  async function request() {
+    if (!student) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const grant = await apiRequest<{ expiresAt: string }>(session, '/api/v1/break-glass', {
+        method: 'POST',
+        body: {
+          resourceType: 'health_record',
+          resourceId: student.id,
+          justification: reason.trim(),
+          minutes,
+        },
+      });
+      setGranted({ until: grant.expiresAt });
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function reset() {
+    setStudent(null);
+    setGranted(null);
+    setReason('');
+    setError(null);
+  }
+
+  return (
+    <section aria-labelledby="emergency-h">
+      <h2 id="emergency-h">Emergency access to a health record</h2>
+      <p className="muted">
+        Only for a real emergency when the nurse is not available. You must say why, the principal is told and
+        reviews every use, and every time the record is opened is recorded.
+      </p>
+      {!student && (
+        <>
+          <div className="form form--inline">
+            <Field label="Find the child" hint="Name or school reference">
+              {(p) => <input {...p} value={query} onChange={(e) => setQuery(e.target.value)} />}
+            </Field>
+          </div>
+          <p className="form__actions">
+            <Button disabled={query.trim().length < 2} onClick={() => setSubmitted(query.trim())}>
+              Search for emergency access
+            </Button>
+          </p>
+          {found.status === 'ready' && (
+            <ul className="plain-list">
+              {found.data.students.map((s) => (
+                <li key={s.id}>
+                  {s.displayName} <span className="muted">{s.schoolRef}</span>{' '}
+                  <Button variant="quiet" onClick={() => setStudent(s)}>{`Choose ${s.displayName}`}</Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {student && !granted && (
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void request();
+          }}
+        >
+          <p>
+            Emergency access to <strong>{student.displayName}</strong>
+          </p>
+          <Field
+            label="Why do you need it?"
+            hint="At least 20 characters. The principal will read this."
+            required
+          >
+            {(p) => <textarea {...p} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />}
+          </Field>
+          <Field label="For how long?">
+            {(p) => (
+              <select {...p} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
+                {MINUTES.map((m) => (
+                  <option key={m} value={m}>
+                    {m < 60 ? `${m} minutes` : `${m / 60} ${m === 60 ? 'hour' : 'hours'}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          {error && <p role="alert">{error}</p>}
+          <p className="form__actions">
+            <Button type="submit" variant="primary" busy={busy} disabled={reason.trim().length < 20}>
+              Open the record in an emergency
+            </Button>
+            <Button variant="quiet" onClick={reset}>
+              Cancel
+            </Button>
+          </p>
+        </form>
+      )}
+      {student && granted && (
+        <>
+          <p role="status">
+            Emergency access granted until {formatDateTime(granted.until)}. The principal has been told.
+          </p>
+          <EmergencyRecord key={student.id} studentId={student.id} />
+          <p>
+            <Button variant="quiet" onClick={reset}>
+              Done
+            </Button>
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function EmergencyRecord({ studentId }: { studentId: string }) {
+  const [record, reload] = useApiResource<HealthRecord>(`/api/v1/students/${studentId}/health-record`);
+  if (record.status === 'loading') return <LoadingState label="Opening health record" />;
+  if (record.status === 'error') return <ErrorState error={record.error} onRetry={reload} />;
+  const r = record.data;
+  return (
+    <dl className="details">
+      <dt>Child</dt>
+      <dd>{r.studentName}</dd>
+      <dt>Emergency flag</dt>
+      <dd>{r.emergencyFlag ?? '—'}</dd>
+      <dt>Blood group</dt>
+      <dd>{r.bloodGroup ?? '—'}</dd>
+      <dt>Allergies</dt>
+      <dd>{r.allergies ?? '—'}</dd>
+      <dt>Conditions</dt>
+      <dd>{r.conditions ?? '—'}</dd>
+      <dt>Medicines</dt>
+      <dd>{r.medicines ?? '—'}</dd>
+    </dl>
   );
 }
 
