@@ -112,7 +112,20 @@ public final class StudentImport {
         Map.entry("guardianname", "guardian.name"), Map.entry("guardiansname", "guardian.name"),
         Map.entry("guardianmobile", "guardian.mobile"), Map.entry("guardiansmobile", "guardian.mobile"),
         Map.entry("guardianphone", "guardian.mobile"), Map.entry("guardiancontact", "guardian.mobile"),
-        Map.entry("guardianemail", "guardian.email"));
+        Map.entry("guardianemail", "guardian.email"),
+        Map.entry("guardianrelationship", "guardian.relationship"), Map.entry("relationship", "guardian.relationship"),
+        Map.entry("relation", "guardian.relationship"), Map.entry("guardianrelation", "guardian.relationship"),
+        Map.entry("relationwithstudent", "guardian.relationship"));
+
+    /** What the relationship column may say for the guardian columns (anything else is a row problem); empty means plain guardian. */
+    private static final Map<String, String> RELATIONSHIPS = Map.ofEntries(
+        Map.entry("mother", "MOTHER"), Map.entry("mom", "MOTHER"), Map.entry("mum", "MOTHER"), Map.entry("mummy", "MOTHER"),
+        Map.entry("father", "FATHER"), Map.entry("dad", "FATHER"), Map.entry("papa", "FATHER"),
+        Map.entry("guardian", "GUARDIAN"),
+        Map.entry("grandparent", "GRANDPARENT"), Map.entry("grandmother", "GRANDPARENT"), Map.entry("grandfather", "GRANDPARENT"),
+        Map.entry("grandma", "GRANDPARENT"), Map.entry("grandpa", "GRANDPARENT"),
+        Map.entry("other", "OTHER"), Map.entry("uncle", "OTHER"), Map.entry("aunt", "OTHER"), Map.entry("aunty", "OTHER"),
+        Map.entry("brother", "OTHER"), Map.entry("sister", "OTHER"), Map.entry("relative", "OTHER"));
 
     /** Guardian columns the file may carry, and the relationship each one stands for. */
     public static final Map<String, String> SLOTS = Map.of("father", "FATHER", "mother", "MOTHER", "guardian", "GUARDIAN");
@@ -261,7 +274,8 @@ public final class StudentImport {
 
     private static FieldChange guardianChange(GuardianAdd a) {
         String who = a.name().isEmpty() ? "existing contact" : a.name() + (a.existingPersonId() != null ? " (existing contact)" : "");
-        return new FieldChange(GUARDIAN_PREFIX + a.slot(), "", capitalise(a.slot()) + ": " + who + ", " + a.mobile());
+        String label = a.slot().equals("guardian") ? capitalise(a.relationship().toLowerCase(Locale.ROOT)) : capitalise(a.slot());
+        return new FieldChange(GUARDIAN_PREFIX + a.slot(), "", label + ": " + who + ", " + a.mobile());
     }
 
     /** Reads the father, mother and guardian columns of one row. Adds only guardians not yet related to the student. */
@@ -298,6 +312,17 @@ public final class StudentImport {
                 problems.add(label + " email \"" + email + "\" is not a valid address.");
                 continue;
             }
+            String relationship = SLOTS.get(slot);
+            if (slot.equals("guardian")) {
+                String said = clean(cell(raw, col.get("guardian.relationship")));
+                if (!said.isEmpty()) {
+                    relationship = RELATIONSHIPS.get(said.toLowerCase(Locale.ROOT));
+                    if (relationship == null) {
+                        problems.add("Relationship \"" + said + "\" is not one of: mother, father, guardian, grandparent, other (uncle, aunt, brother, sister and relative count as other).");
+                        continue;
+                    }
+                }
+            }
             Contact known = book.byMobile().get(mobile.get());
             if (known == null && name.isEmpty()) {
                 problems.add(label + " name is missing (it is needed for a new contact).");
@@ -312,7 +337,7 @@ public final class StudentImport {
                     continue;   // already related, in whatever status: an import never changes or revives a relationship
                 }
             }
-            adds.add(new GuardianAdd(slot, SLOTS.get(slot), name, mobile.get(), email, known == null ? null : known.personId()));
+            adds.add(new GuardianAdd(slot, relationship, name, mobile.get(), email, known == null ? null : known.personId()));
         }
         return adds;
     }

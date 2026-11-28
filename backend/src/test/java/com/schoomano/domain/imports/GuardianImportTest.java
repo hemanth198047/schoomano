@@ -98,4 +98,27 @@ class GuardianImportTest {
         assertEquals(Action.CREATE, row.action());
         assertTrue(row.guardians().isEmpty());
     }
+
+    @Test
+    void theRelationshipColumnSaysWhatTheGuardianColumnsStandFor() {
+        String head = "Adm No,First Name,Guardian Name,Guardian Mobile,Relationship\n";
+        var rows = plan(head
+            + "A-1,Asha,Lata Rao,9876543210,Grandmother\n"
+            + "A-2,Ravi,Om Rao,9876543211,uncle\n"
+            + "A-3,Mina,Sam Rao,9876543212,\n"
+            + "A-4,Tara,Kim Rao,9876543213,Friend\n", Map.of(), GuardianBook.EMPTY).rows();
+        assertEquals("GRANDPARENT", rows.get(0).guardians().get(0).relationship());
+        assertTrue(rows.get(0).changes().stream().anyMatch(c -> c.after().startsWith("Grandparent: Lata Rao")));
+        assertEquals("OTHER", rows.get(1).guardians().get(0).relationship());
+        assertEquals("GUARDIAN", rows.get(2).guardians().get(0).relationship(), "an empty cell means plain guardian");
+        assertEquals(Action.ERROR, rows.get(3).action());
+        assertTrue(rows.get(3).problems().get(0).contains("Friend"));
+    }
+
+    @Test
+    void theRelationshipColumnDoesNotChangeFatherAndMotherColumns() {
+        var row = plan("Adm No,First Name,Father Name,Father Mobile,Relationship\nA-1,Asha,Ramesh Kumar,9876543210,mother\n", Map.of(), GuardianBook.EMPTY)
+            .rows().get(0);
+        assertEquals("FATHER", row.guardians().get(0).relationship());
+    }
 }
