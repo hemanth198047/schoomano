@@ -51,7 +51,7 @@ Tenancy + RLS, identity/roles/relationships model, authorization policy, effecti
 | **B32** (done, verified in CI) Pre-registered visitors | M21 | B28, B31 | Staff announce guests ahead; the gate checks them in against the announcement |
 | **B33** (done, verified in CI) API keys | M27 | B1 | Read-only, expiring, revocable keys for outside systems, shown once |
 | **B34** (done, verified in CI) Webhooks | M27 | B33 | Signed, retried delivery of school events to registered https endpoints; no student events until D7 |
-| **B35** (done, CI pending) Approval reminders and escalation | M26 | B25, B30 | A request waiting 24 hours reminds the step's holders; at 72 hours leadership and the requester are told |
+| **B35** (done, verified in CI) Approval reminders and escalation | M26 | B25, B30 | A request waiting 24 hours reminds the step's holders; at 72 hours leadership and the requester are told |
 
 **Phase 1 exit gate (spec §13)**: the pilot school completes a term-critical daily cycle with reconciled data while running alongside its current system.
 
