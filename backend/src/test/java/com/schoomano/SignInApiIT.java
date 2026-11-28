@@ -257,4 +257,48 @@ class SignInApiIT extends ApiITSupport {
         var fresh = signIn("+919810077011", 12, "New phone");
         me(fresh[0]).andExpect(status().isOk());
     }
+
+    /** Lets the same number ask for another code at once (the real wait is 30 seconds) and forgets the code used before. */
+    private static void again(String phone) throws Exception {
+        CODES.remove(phone);
+        ownerUpdate("update auth_otp_challenge set created_at = created_at - interval '10 minutes' where phone_e164 = '" + phone + "'");
+    }
+
+    @Test
+    void aParentSeesTheirDevicesAndEndsTheOthersButNeverAnotherNumbersSessions() throws Exception {
+        var g = guardian(13);
+        var phone = signIn(g[1], 13, "Pixel 6a");
+        again(g[1]);
+        var tablet = signIn(g[1], 14, "Old tablet");
+        var stranger = signIn(guardian(14)[1], 15, "Someone else's phone");
+
+        String list = mvc.perform(get("/api/v1/auth/sessions").header("Authorization", "Bearer " + phone[0])).andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(2))).andExpect(jsonPath("$[0].current").value(true)).andExpect(jsonPath("$[0].deviceLabel").value("Pixel 6a"))
+            .andExpect(jsonPath("$[1].current").value(false)).andExpect(jsonPath("$[1].deviceLabel").value("Old tablet"))
+            .andReturn().getResponse().getContentAsString();
+        String tabletId = JsonPath.read(list, "$[1].id");
+        String phoneId = JsonPath.read(list, "$[0].id");
+        String strangerId = JsonPath.read(mvc.perform(get("/api/v1/auth/sessions").header("Authorization", "Bearer " + stranger[0]))
+            .andReturn().getResponse().getContentAsString(), "$[0].id");
+
+        // Not someone else's session, and not the one in use (that is signing out).
+        mvc.perform(post("/api/v1/auth/sessions/" + strangerId + "/revoke").header("Authorization", "Bearer " + phone[0])).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/auth/sessions/" + phoneId + "/revoke").header("Authorization", "Bearer " + phone[0])).andExpect(status().isNotFound());
+        me(stranger[0]).andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/auth/sessions/" + tabletId + "/revoke").header("Authorization", "Bearer " + phone[0])).andExpect(status().isOk());
+        me(tablet[0]).andExpect(status().isUnauthorized());
+        me(phone[0]).andExpect(status().isOk());
+
+        again(g[1]);
+        var third = signIn(g[1], 16, "Borrowed phone");
+        mvc.perform(post("/api/v1/auth/sessions/revoke-others").header("Authorization", "Bearer " + phone[0])).andExpect(status().isOk())
+            .andExpect(jsonPath("$.revoked", is(1)));
+        me(third[0]).andExpect(status().isUnauthorized());
+        me(phone[0]).andExpect(status().isOk());
+        me(stranger[0]).andExpect(status().isOk());
+
+        // No sign-in, no list.
+        mvc.perform(get("/api/v1/auth/sessions")).andExpect(status().isUnauthorized());
+    }
 }

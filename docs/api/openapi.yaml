@@ -988,6 +988,50 @@ paths:
         '400': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /api/v1/auth/sessions:
+    get:
+      summary: "Where the caller's own number is signed in (parent sessions), the device in use first. Needs a parent session; anything else gets an empty list."
+      operationId: listMySessions
+      responses:
+        '200':
+          description: Live sessions of the caller's number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    deviceLabel: { type: [string, 'null'] }
+                    signedInAt: { type: string, format: date-time }
+                    lastSeenAt: { type: string, format: date-time }
+                    current: { type: boolean }
+
+  /api/v1/auth/sessions/revoke-others:
+    post:
+      summary: "Sign out every other device of the caller's number (a lost phone)."
+      operationId: revokeOtherSessions
+      responses:
+        '200':
+          description: How many ended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: integer }
+
+  /api/v1/auth/sessions/{id}/revoke:
+    post:
+      summary: "Sign out one other device of the caller's number. 404 for the device in use, an ended session, or anyone else's session."
+      operationId: revokeMySession
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Signed out }
+        '404': { $ref: '#/components/responses/Problem' }
+
   /api/v1/guardians/{guardianId}/sessions:
     get:
       summary: "Where a guardian is signed in (device label, first and last seen). PERSON_MANAGE for one of their children; otherwise 404."

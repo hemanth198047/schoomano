@@ -196,6 +196,37 @@ public class SignInService {
         }
     }
 
+    public record MySession(java.util.UUID id, String deviceLabel, OffsetDateTime signedInAt, OffsetDateTime lastSeenAt, boolean current) { }
+
+    /** The sessions of the number behind this access token, the one in use first. Empty for anything that is not a live parent session. */
+    public java.util.List<MySession> mySessions(String accessToken) {
+        if (!SessionTokens.isAccessToken(accessToken)) {
+            return java.util.List.of();
+        }
+        return tx.runWithoutTenant(jdbc -> jdbc.query("select session_id, device_label, created_at, last_seen_at, is_current from auth_my_sessions(?, ?)",
+            (rs, i) -> new MySession(rs.getObject(1, java.util.UUID.class), rs.getString(2), rs.getObject(3, OffsetDateTime.class),
+                rs.getObject(4, OffsetDateTime.class), rs.getBoolean(5)), SessionTokens.hash(accessToken), now()));
+    }
+
+    /** Ends another of the caller's own sessions. False when there is no such other session of theirs. */
+    public boolean revokeMySession(String accessToken, java.util.UUID session) {
+        if (!SessionTokens.isAccessToken(accessToken)) {
+            return false;
+        }
+        return Boolean.TRUE.equals(tx.runWithoutTenant(jdbc -> jdbc.queryForObject("select auth_my_session_revoke(?, ?, ?)", Boolean.class,
+            SessionTokens.hash(accessToken), session, now())));
+    }
+
+    /** Ends every other session of the caller's number; returns how many ended. */
+    public int revokeOtherSessions(String accessToken) {
+        if (!SessionTokens.isAccessToken(accessToken)) {
+            return 0;
+        }
+        Integer n = tx.runWithoutTenant(jdbc -> jdbc.queryForObject("select auth_my_sessions_revoke_others(?, ?)", Integer.class,
+            SessionTokens.hash(accessToken), now()));
+        return n == null ? 0 : n;
+    }
+
     // ---- helpers --------------------------------------------------------------------------------------------
 
     private TokenPair newPair() {

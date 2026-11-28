@@ -4,6 +4,7 @@ import { ApiError, type Client } from '../core/api';
 import { formatPaise } from '../core/money';
 import { homeworkLine } from '../core/homework';
 import { activityLine, leaderLine } from '../core/activities';
+import { deviceLine, otherDevices, type MyDevice } from '../core/devices';
 import { boardingLines, routeLine } from '../core/transport';
 import { consentLine, tripLine } from '../core/trips';
 import { reportLines } from '../core/report';
@@ -51,8 +52,55 @@ export function ParentHome({ client, me, onSignOut }: { client: Client; me: Me; 
       )}
       {child && <ChildView key={child.studentId} client={client} child={child} />}
       <Inbox client={client} />
+      <Devices client={client} />
       <Button label="Sign out" quiet onPress={onSignOut} />
     </ScrollView>
+  );
+}
+
+function Devices({ client }: { client: Client }) {
+  const [list, setList] = useState<MyDevice[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [shown, setShown] = useState(false);
+  const load = useCallback(() => {
+    client
+      .request<MyDevice[]>('/api/v1/auth/sessions')
+      .then(setList)
+      .catch((e: unknown) => setError(oops(e)));
+  }, [client]);
+  useEffect(() => {
+    if (shown) load();
+  }, [shown, load]);
+  const end = (path: string) =>
+    client
+      .request(path, { method: 'POST' })
+      .then(load)
+      .catch((e: unknown) => setError(oops(e)));
+  if (!shown) return <Button label="Where am I signed in?" quiet onPress={() => setShown(true)} />;
+  return (
+    <Card>
+      <Heading>Signed-in devices</Heading>
+      {error && <Notice kind="error">{error}</Notice>}
+      {!list && !error && <Body muted>Loading…</Body>}
+      {list?.map((d) => (
+        <View key={d.id}>
+          <Body>{deviceLine(d)}</Body>
+          {!d.current && (
+            <Button
+              label={`Sign out ${d.deviceLabel ?? 'this device'}`}
+              quiet
+              onPress={() => void end(`/api/v1/auth/sessions/${d.id}/revoke`)}
+            />
+          )}
+        </View>
+      ))}
+      {list && otherDevices(list).length > 1 && (
+        <Button
+          label="Sign out of all other devices"
+          onPress={() => void end('/api/v1/auth/sessions/revoke-others')}
+        />
+      )}
+    </Card>
   );
 }
 

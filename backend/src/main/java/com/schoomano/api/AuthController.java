@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -68,6 +69,31 @@ public class AuthController {
         if (authorization.startsWith("Bearer ")) {
             signIn.logout(authorization.substring("Bearer ".length()));
         }
+    }
+
+    /** Where this number is signed in: the device the caller is using first. */
+    @GetMapping("/sessions")
+    public java.util.List<SignInService.MySession> sessions(@RequestHeader("Authorization") String authorization) {
+        return signIn.mySessions(token(authorization));
+    }
+
+    /** Signs out every other device of the caller's number (a lost phone). */
+    @PostMapping("/sessions/revoke-others")
+    public java.util.Map<String, Integer> revokeOthers(@RequestHeader("Authorization") String authorization) {
+        return java.util.Map.of("revoked", signIn.revokeOtherSessions(token(authorization)));
+    }
+
+    /** Signs out one other device of the caller's number. */
+    @PostMapping("/sessions/{id}/revoke")
+    public java.util.Map<String, Boolean> revokeOne(@RequestHeader("Authorization") String authorization, @org.springframework.web.bind.annotation.PathVariable java.util.UUID id) {
+        if (!signIn.revokeMySession(token(authorization), id)) {
+            throw ApiException.notFound();
+        }
+        return java.util.Map.of("revoked", true);
+    }
+
+    private static String token(String authorization) {
+        return authorization.startsWith("Bearer ") ? authorization.substring("Bearer ".length()) : "";
     }
 
     private static String phone(String typed) {
